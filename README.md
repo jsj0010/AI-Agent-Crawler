@@ -1,9 +1,10 @@
 # AI-Agent-Crawler
 
-Spring Boot 내부 호출 전용 Python API 서버입니다. 현재는 아래 3개 API만 제공합니다.
+Spring Boot 내부 호출 전용 Python API 서버입니다. 현재는 아래 API를 제공합니다.
 
 - `POST /api/v1/python/meals/crawl`
 - `POST /api/v1/python/menus/analyze`
+- `POST /api/v1/python/menus/analyze-image`
 - `POST /api/v1/python/menus/translate`
 
 ---
@@ -64,6 +65,7 @@ python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
 |---|---|---|
 | `POST` | `/api/v1/python/meals/crawl` | 주간 식단 크롤링 |
 | `POST` | `/api/v1/python/menus/analyze` | 메뉴 재료/알레르기 코드 분석 |
+| `POST` | `/api/v1/python/menus/analyze-image` | 이미지 기반 메뉴 재료/알레르기 코드 분석 |
 | `POST` | `/api/v1/python/menus/translate` | 메뉴명 번역 |
 
 ---
@@ -326,6 +328,56 @@ public record PythonTranslatedMenuNameDto(
 ```
 
 실패 응답 예시:
+
+```json
+{ "success": false, "code": "AI_001", "msg": "GEMINI_API_KEY is not set" }
+```
+
+---
+
+## 4) 이미지 메뉴 분석 API
+
+### `POST /api/v1/python/menus/analyze-image`
+
+추후 확장을 위해 추가한 API입니다. 이미지 입력이지만, 응답은 텍스트 분석과 동일하게 `results` 배열 DTO를 사용합니다.
+
+요청 형식:
+
+- `multipart/form-data`
+- `image`: 이미지 파일 (필수)
+- `menuId`: 메뉴 매핑용 ID (필수)
+- `menuName`: 메뉴명 (필수)
+
+성공 응답 예시:
+
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      {
+        "menuId": 101,
+        "menuName": "김치찌개",
+        "status": "COMPLETED",
+        "reason": null,
+        "modelName": "gemini",
+        "modelVersion": "2.5",
+        "analyzedAt": "2026-04-15T09:30:00",
+        "ingredients": [
+          { "ingredientCode": "PORK", "confidence": 0.92 },
+          { "ingredientCode": "SOYBEAN", "confidence": 0.88 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+실패 응답 예시:
+
+```json
+{ "success": false, "code": "COM_001", "msg": "이미지 파일이 비어 있습니다." }
+```
 
 ```json
 { "success": false, "code": "AI_001", "msg": "GEMINI_API_KEY is not set" }

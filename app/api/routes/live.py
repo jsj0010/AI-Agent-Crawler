@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body, File, Form, Request, UploadFile
 
-from app.config.runtime import API_V1_PREFIX, RuntimeContext
+from app.config.runtime import ALLOWED_MIME_TYPES, API_V1_PREFIX, MAX_IMAGE_SIZE, RuntimeContext
 from app.schemas.api_models import (
     ApiErrorResponse,
     ApiSuccessResponse,
@@ -39,12 +42,20 @@ from app.common.service_ops import (
     v1_success,
     validate_accept_language,
 )
+from app.domain.image.agent import analyze_food_image_bytes
 
 logger = logging.getLogger(__name__)
 
 
 def _v1_bad_request(msg: str):
     return v1_error("COM_001", msg, status_code=400)
+
+
+def _safe_float(value: object, default: float = 0.5) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def create_v1_router(ctx: RuntimeContext) -> APIRouter:
@@ -186,6 +197,94 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
             return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
         results = await service.analyze_menus(payload.menus, max_concurrency=cfg.ai_max_concurrent_tasks)
         return v1_success({"results": results})
+
+    @router.post(
+        "/python/menus/analyze-image",
+        tags=["v1"],
+        summary="이미지 기반 메뉴 AI 분석",
+        description="음식 이미지를 분석하고 텍스트 분석과 동일한 results DTO 형태로 반환합니다.",
+        operation_id="analyzeMenuImageV1",
+        response_model=ApiSuccessResponse[PythonMenuAnalysisResponse],
+        responses={
+            400: {"model": ApiErrorResponse},
+            500: {"model": ApiErrorResponse},
+            413: {"model": ApiErrorResponse},
+        },
+    )
+    async def analyze_menu_image_v1(
+        request: Request,
+        image: UploadFile = File(...),
+        menuId: int = Form(...),
+        menuName: str = Form(...),
+    ):
+        try:
+            validate_accept_language(request.headers.get("Accept-Language"))
+        except ValueError as e:
+            return _v1_bad_request(str(e))
+        if client is None:
+            return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
+
+        normalized_name = menuName.strip()
+        if not normalized_name:
+            return _v1_bad_request("menuName은 비어 있을 수 없습니다.")
+
+        image_bytes = await image.read()
+        mime_type = image.content_type or "image/jpeg"
+        if not image_bytes:
+            return _v1_bad_request("이미지 파일이 비어 있습니다.")
+        if len(image_bytes) > MAX_IMAGE_SIZE:
+            return v1_error("COM_001", "이미지 파일이 너무 큽니다 (최대 10MB).", status_code=413)
+        if mime_type not in ALLOWED_MIME_TYPES:
+            return _v1_bad_request(f"지원하지 않는 이미지 형식: {mime_type}")
+
+        analyzed_at = datetime.now(ZoneInfo(cfg.timezone_name)).strftime("%Y-%m-%dT%H:%M:%S")
+        try:
+            analysis = await asyncio.to_thread(
+                analyze_food_image_bytes,
+                client,
+                cfg.gemini_model,
+                image_bytes,
+                mime_type,
+            )
+            ingredient_codes: list[dict[str, object]] = []
+            dedup: set[str] = set()
+            for idx, item in enumerate(analysis.get("추정_식재료") or []):
+                if not isinstance(item, dict):
+                    continue
+                code = service.map_ingredient_code(str(item.get("재료", "")).strip())
+                if not code or code in dedup:
+                    continue
+                dedup.add(code)
+                confidence = _safe_float(item.get("신뢰도", 0.5), default=0.5)
+                ingredient_codes.append(
+                    {
+                        "ingredientCode": code,
+                        "confidence": max(0.0, min(confidence, 1.0)),
+                    }
+                )
+
+            result = {
+                "menuId": menuId,
+                "menuName": normalized_name,
+                "status": "COMPLETED",
+                "reason": None,
+                "modelName": "gemini",
+                "modelVersion": cfg.gemini_model,
+                "analyzedAt": analyzed_at,
+                "ingredients": ingredient_codes,
+            }
+        except Exception as e:
+            result = {
+                "menuId": menuId,
+                "menuName": normalized_name,
+                "status": "FAILED",
+                "reason": str(e)[:300],
+                "modelName": "gemini",
+                "modelVersion": cfg.gemini_model,
+                "analyzedAt": analyzed_at,
+                "ingredients": [],
+            }
+        return v1_success({"results": [result]})
 
     @router.post(
         "/python/menus/translate",
