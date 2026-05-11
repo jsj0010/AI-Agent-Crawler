@@ -14,8 +14,7 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 
 from app.config.runtime import API_V1_PREFIX, RuntimeContext
-from app.api.routes.live import create_legacy_router, create_v1_router
-from app.api.routes.spring_native import create_spring_native_router
+from app.api.routes.live import create_v1_router
 from app.common.service_ops import next_run, run_weekly_crawl_once, v1_error
 
 logger = logging.getLogger(__name__)
@@ -54,18 +53,11 @@ def create_app(ctx: RuntimeContext) -> FastAPI:
                     pass
 
     openapi_tags = [
-        {"name": "legacy", "description": "기존 운영 호환 엔드포인트"},
-        {"name": "v1-meals", "description": "식단 크롤링/조회 관련 API"},
-        {"name": "v1-ai", "description": "AI 분석/이미지 분석 API"},
-        {"name": "v1-translation", "description": "번역 API"},
-        {
-            "name": "spring-meal-client",
-            "description": "Spring Boot `PythonMealClientAdapter` / `MealCrawlProperties` 기본 경로와 동일한 비래핑 JSON 응답",
-        },
+        {"name": "v1", "description": "식단 조회/메뉴 분석/메뉴 번역 API"},
     ]
     app = FastAPI(
         title="AI-Agent-Crawler Live Service",
-        description="Spring 연동용 Python API 서버입니다. 성공 응답은 success/data, 실패 응답은 success/code/msg 형식을 사용합니다.",
+        description="Spring 연동용 Python API 서버입니다. success/data 형식으로 3개 API를 제공합니다.",
         version="1.1.0",
         lifespan=lifespan,
         openapi_url="/openapi.json",
@@ -84,7 +76,5 @@ def create_app(ctx: RuntimeContext) -> FastAPI:
             )
         return await request_validation_exception_handler(request, exc)
 
-    app.include_router(create_legacy_router(ctx))
     app.include_router(create_v1_router(ctx))
-    app.include_router(create_spring_native_router(ctx))
     return app

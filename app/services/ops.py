@@ -31,6 +31,108 @@ from user_features.payloads import build_extended_menu_payload
 DEFAULT_SOURCE_ALLOWLIST = {"www.kumoh.ac.kr", "kumoh.ac.kr"}
 MEAL_TYPE_ORDER = {"BREAKFAST": 0, "LUNCH": 1, "DINNER": 2}
 logger = logging.getLogger(__name__)
+ALLERGY_KEYWORD_TO_API_CODE = {
+    "mackerel": "MACKEREL",
+    "고등어": "MACKEREL",
+    "crab": "CRAB",
+    "게": "CRAB",
+    "shrimp": "SHRIMP",
+    "새우": "SHRIMP",
+    "squid": "SQUID",
+    "오징어": "SQUID",
+    "shellfish": "SHELLFISH",
+    "조개류": "SHELLFISH",
+    "clam": "CLAM",
+    "조개": "CLAM",
+    "mussel": "MUSSEL",
+    "홍합": "MUSSEL",
+    "oyster": "OYSTER",
+    "굴": "OYSTER",
+    "lobster": "LOBSTER",
+    "랍스터": "LOBSTER",
+    "scallop": "SCALLOP",
+    "가리비": "SCALLOP",
+    "pork": "PORK",
+    "돼지고기": "PORK",
+    "돼지": "PORK",
+    "제육": "PORK",
+    "chicken": "CHICKEN",
+    "닭고기": "CHICKEN",
+    "닭": "CHICKEN",
+    "치킨": "CHICKEN",
+    "beef": "BEEF",
+    "쇠고기": "BEEF",
+    "소고기": "BEEF",
+    "egg": "EGG",
+    "난류": "EGG",
+    "계란": "EGG",
+    "달걀": "EGG",
+    "milk": "MILK",
+    "dairy": "MILK",
+    "우유": "MILK",
+    "유제품": "MILK",
+    "peanut": "PEANUT",
+    "땅콩": "PEANUT",
+    "soybean": "SOYBEAN",
+    "soy": "SOYBEAN",
+    "대두": "SOYBEAN",
+    "wheat": "WHEAT",
+    "밀": "WHEAT",
+    "buckwheat": "BUCKWHEAT",
+    "메밀": "BUCKWHEAT",
+    "oats": "OATS",
+    "귀리": "OATS",
+    "rye": "RYE",
+    "호밀": "RYE",
+    "barley": "BARLEY",
+    "보리": "BARLEY",
+    "tree nut": "TREE_NUT",
+    "tree nuts": "TREE_NUT",
+    "견과류": "TREE_NUT",
+    "walnut": "WALNUT",
+    "호두": "WALNUT",
+    "almond": "ALMOND",
+    "아몬드": "ALMOND",
+    "hazelnut": "HAZELNUT",
+    "헤이즐넛": "HAZELNUT",
+    "cashew": "CASHEW",
+    "캐슈너트": "CASHEW",
+    "pistachio": "PISTACHIO",
+    "피스타치오": "PISTACHIO",
+    "pecan": "PECAN",
+    "피칸": "PECAN",
+    "brazil nut": "BRAZIL_NUT",
+    "브라질너트": "BRAZIL_NUT",
+    "macadamia": "MACADAMIA",
+    "마카다미아": "MACADAMIA",
+    "pine nut": "PINE_NUT",
+    "잣": "PINE_NUT",
+    "peach": "PEACH",
+    "복숭아": "PEACH",
+    "mango": "MANGO",
+    "망고": "MANGO",
+    "avocado": "AVOCADO",
+    "아보카도": "AVOCADO",
+    "banana": "BANANA",
+    "바나나": "BANANA",
+    "kiwi": "KIWI",
+    "키위": "KIWI",
+    "tomato": "TOMATO",
+    "토마토": "TOMATO",
+    "celery": "CELERY",
+    "셀러리": "CELERY",
+    "mustard": "MUSTARD",
+    "머스타드": "MUSTARD",
+    "sulfites": "SULFITES",
+    "아황산류": "SULFITES",
+    "sesame": "SESAME",
+    "참깨": "SESAME",
+    "lupin": "LUPIN",
+    "루핀": "LUPIN",
+    "latex": "LATEX_RELATED",
+    "라텍스": "LATEX_RELATED",
+}
+ALLERGY_API_CODES = set(ALLERGY_KEYWORD_TO_API_CODE.values())
 
 
 class CrawlSourceUpstreamError(Exception):
@@ -163,6 +265,67 @@ def identify_food_from_image(
     if not isinstance(parsed, dict):
         raise RuntimeError("모델 응답 JSON이 객체 형태가 아닙니다.")
     return parsed
+
+
+def extract_menu_text_from_image(
+    client: genai.Client | None,
+    model_name: str,
+    image_bytes: bytes,
+    mime_type: str,
+) -> dict[str, Any]:
+    if client is None:
+        raise RuntimeError("GEMINI_API_KEY is not set")
+    prompt = """메뉴판 이미지에서 메뉴 텍스트를 OCR 관점으로 읽어주세요.
+JSON 객체 하나만 출력:
+{
+  "rawText": "메뉴판에서 읽은 전체 텍스트",
+  "menuNames": ["중복 제거된 메뉴명", "메뉴명2"]
+}
+규칙:
+- menuNames는 실제 음식/메뉴명만 포함
+- 가격, 날짜, 번호, 안내문구 제외
+- 같은 메뉴 중복 제거
+"""
+    resp = client.models.generate_content(
+        model=model_name,
+        contents=[
+            types.Part.from_text(text=prompt),
+            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+        ],
+        config=types.GenerateContentConfig(
+            temperature=0.1,
+            max_output_tokens=2048,
+            response_mime_type="application/json",
+        ),
+    )
+    raw = (getattr(resp, "text", "") or "").strip()
+    if not raw:
+        raise RuntimeError("모델 OCR 응답이 비어 있습니다.")
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error("Failed to parse Gemini OCR response: %s", raw)
+        raise RuntimeError(f"모델 OCR 응답이 유효한 JSON이 아닙니다: {e}") from e
+    if not isinstance(parsed, dict):
+        raise RuntimeError("모델 OCR 응답 JSON이 객체 형태가 아닙니다.")
+
+    raw_text = parsed.get("rawText")
+    if not isinstance(raw_text, str):
+        raw_text = ""
+    menu_names_raw = parsed.get("menuNames")
+    if not isinstance(menu_names_raw, list):
+        menu_names_raw = []
+    menu_names: list[str] = []
+    dedup: set[str] = set()
+    for entry in menu_names_raw:
+        if not isinstance(entry, str):
+            continue
+        normalized = entry.strip()
+        if not normalized or normalized in dedup:
+            continue
+        dedup.add(normalized)
+        menu_names.append(normalized)
+    return {"rawText": raw_text.strip(), "menuNames": menu_names}
 
 
 def post_json(*, url: str, payload: dict[str, Any], token: str | None, api_key: str | None) -> requests.Response:
@@ -371,6 +534,23 @@ def map_ingredient_code(token: str) -> str | None:
     direct = CANONICAL_TO_INGREDIENT_CODE.get(normalized)
     if direct:
         return direct
+    normalized_upper = normalized.upper().replace("-", "_").replace(" ", "_")
+    if normalized_upper in ALLERGY_API_CODES:
+        return normalized_upper
+
+    lowered = normalized.lower()
+    by_keyword = ALLERGY_KEYWORD_TO_API_CODE.get(lowered)
+    if by_keyword:
+        return by_keyword
+    for keyword, code in ALLERGY_KEYWORD_TO_API_CODE.items():
+        if not keyword:
+            continue
+        if keyword.isascii():
+            if re.search(rf"\b{re.escape(keyword)}\b", lowered):
+                return code
+            continue
+        if keyword in normalized:
+            return code
     alias_key = normalized.lower() if normalized.isascii() else normalized
     canonical = ALIAS_TO_CANONICAL.get(normalized) or ALIAS_TO_CANONICAL.get(alias_key)
     if canonical:
@@ -421,6 +601,7 @@ __all__ = [
     "auth_headers",
     "analyze_food_text",
     "build_daily_meals",
+    "extract_menu_text_from_image",
     "extract_date_from_column",
     "identify_food_from_image",
     "infer_meal_type",

@@ -73,6 +73,15 @@ class LiveService:
             query.mime_type,
         )
 
+    def extract_menu_text_from_image(self, image_bytes: bytes, mime_type: str) -> dict[str, Any]:
+        query = FoodImageQuery(image_bytes=image_bytes, mime_type=mime_type)
+        return self.ai_repo.extract_menu_text_from_image(
+            self.client,
+            self.cfg.gemini_model,
+            query.image_bytes,
+            query.mime_type,
+        )
+
     def translate_text(self, source_lang: str, target_lang: str, text: str) -> str:
         return self.ai_repo.translate_text(
             self.client,
