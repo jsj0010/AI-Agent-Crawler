@@ -1,9 +1,10 @@
-"""`/api/v1` 요청 DTO 모음."""
+"""`/api/v1/python/*` DTO 모음."""
 
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Generic, Optional, TypeVar
+from datetime import datetime
+from typing import Generic, Optional, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -43,12 +44,6 @@ class PythonMenuTranslationRequest(BaseModel):
     targetLanguages: list[str] = Field(..., min_length=1)
 
 
-class FreeTranslationRequest(BaseModel):
-    sourceLang: str = Field(..., min_length=2)
-    targetLang: str = Field(..., min_length=2)
-    text: str = Field(..., min_length=1)
-
-
 class ApiErrorResponse(BaseModel):
     success: bool = Field(default=False, examples=[False])
     code: str = Field(..., examples=["COM_002"])
@@ -60,111 +55,57 @@ class ApiSuccessResponse(BaseModel, Generic[T]):
     data: T
 
 
-class MealMenuItemResponse(BaseModel):
+class PythonCrawledMenuDto(BaseModel):
     cornerName: str
     displayOrder: int
     menuName: str
 
 
-class MealItemResponse(BaseModel):
-    mealDate: str
+class PythonDailyMealDto(BaseModel):
+    mealDate: date
     mealType: str
-    menus: list[MealMenuItemResponse]
+    menus: list[PythonCrawledMenuDto]
 
 
-class PythonMealCrawlDataResponse(BaseModel):
+class PythonMealCrawlResponse(BaseModel):
     schoolName: str
     cafeteriaName: str
     sourceUrl: str
-    startDate: str
-    endDate: str
-    meals: list[MealItemResponse]
+    startDate: date
+    endDate: date
+    meals: list[PythonDailyMealDto]
 
 
-class IngredientItemResponse(BaseModel):
+class PythonMenuIngredientResultDto(BaseModel):
     ingredientCode: str
     confidence: float
 
 
-class MenuAnalysisResultResponse(BaseModel):
+class PythonMenuAnalysisResultDto(BaseModel):
     menuId: int
     menuName: str
     status: str
     reason: Optional[str] = None
     modelName: str
     modelVersion: str
-    analyzedAt: str
-    ingredients: list[IngredientItemResponse]
+    analyzedAt: datetime
+    ingredients: list[PythonMenuIngredientResultDto]
 
 
-class PythonMenuAnalysisDataResponse(BaseModel):
-    results: list[MenuAnalysisResultResponse]
+class PythonMenuAnalysisResponse(BaseModel):
+    results: list[PythonMenuAnalysisResultDto]
 
 
-class TranslationItemResponse(BaseModel):
+class PythonTranslatedMenuNameDto(BaseModel):
     langCode: str
     translatedName: str
 
 
-class TranslationErrorItemResponse(BaseModel):
-    langCode: str
-    reason: str
-
-
-class MenuTranslationResultResponse(BaseModel):
+class PythonMenuTranslationResultDto(BaseModel):
     menuId: int
     sourceName: str
-    translations: list[TranslationItemResponse]
-    translationErrors: list[TranslationErrorItemResponse]
+    translations: list[PythonTranslatedMenuNameDto]
 
 
-class PythonMenuTranslationDataResponse(BaseModel):
-    results: list[MenuTranslationResultResponse]
-
-
-class FreeTranslationDataResponse(BaseModel):
-    sourceLang: str
-    targetLang: str
-    text: str
-    translatedText: str
-
-
-class RecognizedMenuItemResponse(BaseModel):
-    menuName: Optional[str] = None
-    confidence: Optional[float] = None
-
-
-class MenuBoardAnalyzeDataResponse(BaseModel):
-    requestId: Optional[str] = None
-    recognizedMenus: list[RecognizedMenuItemResponse]
-
-
-class FoodImageAnalyzeDataResponse(BaseModel):
-    requestId: Optional[str] = None
-    foodName: Optional[str] = None
-    ingredients: list[IngredientItemResponse]
-    notes: Optional[str] = None
-
-
-class LegacyHealthResponse(BaseModel):
-    ok: bool
-    weeklyCrawlConfigured: bool
-    imageAnalysisConfigured: bool
-    imageIdentifyConfigured: bool
-    textAnalysisConfigured: bool
-    directImageAnalysisEnabled: bool
-    timezone: str
-
-
-class LegacyForwardResponse(BaseModel):
-    status: str
-    forwardStatus: int
-    analysis: Optional[dict[str, Any]] = None
-    identified: Optional[dict[str, Any]] = None
-
-
-class LegacyCrawlForwardResponse(BaseModel):
-    status: str
-    restaurants: int
-    analysisRows: int
-    i18nLocale: str
+class PythonMenuTranslationResponse(BaseModel):
+    results: list[PythonMenuTranslationResultDto]
