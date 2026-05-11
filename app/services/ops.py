@@ -31,6 +31,108 @@ from user_features.payloads import build_extended_menu_payload
 DEFAULT_SOURCE_ALLOWLIST = {"www.kumoh.ac.kr", "kumoh.ac.kr"}
 MEAL_TYPE_ORDER = {"BREAKFAST": 0, "LUNCH": 1, "DINNER": 2}
 logger = logging.getLogger(__name__)
+ALLERGY_KEYWORD_TO_API_CODE = {
+    "mackerel": "MACKEREL",
+    "고등어": "MACKEREL",
+    "crab": "CRAB",
+    "게": "CRAB",
+    "shrimp": "SHRIMP",
+    "새우": "SHRIMP",
+    "squid": "SQUID",
+    "오징어": "SQUID",
+    "shellfish": "SHELLFISH",
+    "조개류": "SHELLFISH",
+    "clam": "CLAM",
+    "조개": "CLAM",
+    "mussel": "MUSSEL",
+    "홍합": "MUSSEL",
+    "oyster": "OYSTER",
+    "굴": "OYSTER",
+    "lobster": "LOBSTER",
+    "랍스터": "LOBSTER",
+    "scallop": "SCALLOP",
+    "가리비": "SCALLOP",
+    "pork": "PORK",
+    "돼지고기": "PORK",
+    "돼지": "PORK",
+    "제육": "PORK",
+    "chicken": "CHICKEN",
+    "닭고기": "CHICKEN",
+    "닭": "CHICKEN",
+    "치킨": "CHICKEN",
+    "beef": "BEEF",
+    "쇠고기": "BEEF",
+    "소고기": "BEEF",
+    "egg": "EGG",
+    "난류": "EGG",
+    "계란": "EGG",
+    "달걀": "EGG",
+    "milk": "MILK",
+    "dairy": "MILK",
+    "우유": "MILK",
+    "유제품": "MILK",
+    "peanut": "PEANUT",
+    "땅콩": "PEANUT",
+    "soybean": "SOYBEAN",
+    "soy": "SOYBEAN",
+    "대두": "SOYBEAN",
+    "wheat": "WHEAT",
+    "밀": "WHEAT",
+    "buckwheat": "BUCKWHEAT",
+    "메밀": "BUCKWHEAT",
+    "oats": "OATS",
+    "귀리": "OATS",
+    "rye": "RYE",
+    "호밀": "RYE",
+    "barley": "BARLEY",
+    "보리": "BARLEY",
+    "tree nut": "TREE_NUT",
+    "tree nuts": "TREE_NUT",
+    "견과류": "TREE_NUT",
+    "walnut": "WALNUT",
+    "호두": "WALNUT",
+    "almond": "ALMOND",
+    "아몬드": "ALMOND",
+    "hazelnut": "HAZELNUT",
+    "헤이즐넛": "HAZELNUT",
+    "cashew": "CASHEW",
+    "캐슈너트": "CASHEW",
+    "pistachio": "PISTACHIO",
+    "피스타치오": "PISTACHIO",
+    "pecan": "PECAN",
+    "피칸": "PECAN",
+    "brazil nut": "BRAZIL_NUT",
+    "브라질너트": "BRAZIL_NUT",
+    "macadamia": "MACADAMIA",
+    "마카다미아": "MACADAMIA",
+    "pine nut": "PINE_NUT",
+    "잣": "PINE_NUT",
+    "peach": "PEACH",
+    "복숭아": "PEACH",
+    "mango": "MANGO",
+    "망고": "MANGO",
+    "avocado": "AVOCADO",
+    "아보카도": "AVOCADO",
+    "banana": "BANANA",
+    "바나나": "BANANA",
+    "kiwi": "KIWI",
+    "키위": "KIWI",
+    "tomato": "TOMATO",
+    "토마토": "TOMATO",
+    "celery": "CELERY",
+    "셀러리": "CELERY",
+    "mustard": "MUSTARD",
+    "머스타드": "MUSTARD",
+    "sulfites": "SULFITES",
+    "아황산류": "SULFITES",
+    "sesame": "SESAME",
+    "참깨": "SESAME",
+    "lupin": "LUPIN",
+    "루핀": "LUPIN",
+    "latex": "LATEX_RELATED",
+    "라텍스": "LATEX_RELATED",
+}
+ALLERGY_API_CODES = set(ALLERGY_KEYWORD_TO_API_CODE.values())
 
 
 class CrawlSourceUpstreamError(Exception):
@@ -371,6 +473,17 @@ def map_ingredient_code(token: str) -> str | None:
     direct = CANONICAL_TO_INGREDIENT_CODE.get(normalized)
     if direct:
         return direct
+    normalized_upper = normalized.upper().replace("-", "_").replace(" ", "_")
+    if normalized_upper in ALLERGY_API_CODES:
+        return normalized_upper
+
+    lowered = normalized.lower()
+    by_keyword = ALLERGY_KEYWORD_TO_API_CODE.get(lowered) or ALLERGY_KEYWORD_TO_API_CODE.get(normalized)
+    if by_keyword:
+        return by_keyword
+    for keyword, code in ALLERGY_KEYWORD_TO_API_CODE.items():
+        if keyword and keyword in lowered:
+            return code
     alias_key = normalized.lower() if normalized.isascii() else normalized
     canonical = ALIAS_TO_CANONICAL.get(normalized) or ALIAS_TO_CANONICAL.get(alias_key)
     if canonical:
