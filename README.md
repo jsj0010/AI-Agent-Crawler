@@ -4,6 +4,8 @@ Spring Boot 내부 호출 전용 Python API 서버입니다. 현재는 아래 AP
 
 - `POST /api/v1/python/meals/crawl`
 - `POST /api/v1/python/menus/analyze`
+- `POST /api/v1/python/menus/ocr`
+- `POST /api/v1/python/menus/analyze-from-ocr`
 - `POST /api/v1/python/menus/analyze-image`
 - `POST /api/v1/python/menus/translate`
 
@@ -65,6 +67,8 @@ python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
 |---|---|---|
 | `POST` | `/api/v1/python/meals/crawl` | 주간 식단 크롤링 |
 | `POST` | `/api/v1/python/menus/analyze` | 메뉴 재료/알레르기 코드 분석 |
+| `POST` | `/api/v1/python/menus/ocr` | 메뉴판 이미지 OCR 추출 |
+| `POST` | `/api/v1/python/menus/analyze-from-ocr` | 메뉴판 OCR 후 연속 분석 |
 | `POST` | `/api/v1/python/menus/analyze-image` | 이미지 기반 메뉴 재료/알레르기 코드 분석 |
 | `POST` | `/api/v1/python/menus/translate` | 메뉴명 번역 |
 
@@ -335,7 +339,74 @@ public record PythonTranslatedMenuNameDto(
 
 ---
 
-## 4) 이미지 메뉴 분석 API
+## 4) 메뉴판 OCR API
+
+### `POST /api/v1/python/menus/ocr`
+
+메뉴판 이미지에서 OCR 방식으로 텍스트를 읽고 메뉴 목록을 추출합니다.
+
+요청 형식:
+
+- `multipart/form-data`
+- `image`: 메뉴판 이미지 파일 (필수)
+
+성공 응답 예시:
+
+```json
+{
+  "success": true,
+  "data": {
+    "rawText": "중식\n김치찌개\n돈까스\n비빔밥",
+    "menus": [
+      { "menuName": "김치찌개" },
+      { "menuName": "돈까스" },
+      { "menuName": "비빔밥" }
+    ]
+  }
+}
+```
+
+---
+
+## 5) 메뉴판 OCR + 분석 API
+
+### `POST /api/v1/python/menus/analyze-from-ocr`
+
+메뉴판 OCR 결과를 바로 메뉴 분석으로 연결합니다.
+
+요청 형식:
+
+- `multipart/form-data`
+- `image`: 메뉴판 이미지 파일 (필수)
+- `startMenuId`: 응답 `menuId` 시작값 (선택, 기본값 `1`)
+
+성공 응답 예시:
+
+```json
+{
+  "success": true,
+  "data": {
+    "results": [
+      {
+        "menuId": 1,
+        "menuName": "김치찌개",
+        "status": "COMPLETED",
+        "reason": null,
+        "modelName": "gemini",
+        "modelVersion": "2.5",
+        "analyzedAt": "2026-04-15T09:30:00",
+        "ingredients": [
+          { "ingredientCode": "PORK", "confidence": 0.92 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 6) 이미지 메뉴 분석 API
 
 ### `POST /api/v1/python/menus/analyze-image`
 

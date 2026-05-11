@@ -267,6 +267,63 @@ def identify_food_from_image(
     return parsed
 
 
+def extract_menu_text_from_image(
+    client: genai.Client | None,
+    model_name: str,
+    image_bytes: bytes,
+    mime_type: str,
+) -> dict[str, Any]:
+    if client is None:
+        raise RuntimeError("GEMINI_API_KEY is not set")
+    prompt = """메뉴판 이미지에서 메뉴 텍스트를 OCR 관점으로 읽어주세요.
+JSON 객체 하나만 출력:
+{
+  "rawText": "메뉴판에서 읽은 전체 텍스트",
+  "menuNames": ["중복 제거된 메뉴명", "메뉴명2"]
+}
+규칙:
+- menuNames는 실제 음식/메뉴명만 포함
+- 가격, 날짜, 번호, 안내문구 제외
+- 같은 메뉴 중복 제거
+"""
+    resp = client.models.generate_content(
+        model=model_name,
+        contents=[
+            types.Part.from_text(text=prompt),
+            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+        ],
+        config=types.GenerateContentConfig(
+            temperature=0.1,
+            max_output_tokens=2048,
+            response_mime_type="application/json",
+        ),
+    )
+    raw = (getattr(resp, "text", "") or "").strip()
+    if not raw:
+        raise RuntimeError("모델 OCR 응답이 비어 있습니다.")
+    parsed = json.loads(raw)
+    if not isinstance(parsed, dict):
+        raise RuntimeError("모델 OCR 응답 JSON이 객체 형태가 아닙니다.")
+
+    raw_text = parsed.get("rawText")
+    if not isinstance(raw_text, str):
+        raw_text = ""
+    menu_names_raw = parsed.get("menuNames")
+    if not isinstance(menu_names_raw, list):
+        menu_names_raw = []
+    menu_names: list[str] = []
+    dedup: set[str] = set()
+    for entry in menu_names_raw:
+        if not isinstance(entry, str):
+            continue
+        normalized = entry.strip()
+        if not normalized or normalized in dedup:
+            continue
+        dedup.add(normalized)
+        menu_names.append(normalized)
+    return {"rawText": raw_text.strip(), "menuNames": menu_names}
+
+
 def post_json(*, url: str, payload: dict[str, Any], token: str | None, api_key: str | None) -> requests.Response:
     return requests.post(
         url,
@@ -534,6 +591,7 @@ __all__ = [
     "auth_headers",
     "analyze_food_text",
     "build_daily_meals",
+    "extract_menu_text_from_image",
     "extract_date_from_column",
     "identify_food_from_image",
     "infer_meal_type",

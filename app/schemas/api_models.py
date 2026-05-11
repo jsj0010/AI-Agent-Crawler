@@ -34,6 +34,15 @@ class PythonMenuAnalysisRequest(BaseModel):
     menus: list[PythonMenuAnalysisTargetDto] = Field(..., min_length=1)
 
 
+class PythonMenuOcrMenuDto(BaseModel):
+    menuName: str
+
+
+class PythonMenuOcrResponse(BaseModel):
+    rawText: str
+    menus: list[PythonMenuOcrMenuDto]
+
+
 class PythonMenuTranslationTargetDto(BaseModel):
     menuId: int
     menuName: str = Field(..., min_length=1)

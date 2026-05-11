@@ -18,6 +18,8 @@ from app.schemas.api_models import (
     PythonMealCrawlRequest,
     PythonMenuAnalysisResponse,
     PythonMenuAnalysisRequest,
+    PythonMenuAnalysisTargetDto,
+    PythonMenuOcrResponse,
     PythonMenuTranslationResponse,
     PythonMenuTranslationRequest,
 )
@@ -196,6 +198,94 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
         if client is None:
             return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
         results = await service.analyze_menus(payload.menus, max_concurrency=cfg.ai_max_concurrent_tasks)
+        return v1_success({"results": results})
+
+    @router.post(
+        "/python/menus/ocr",
+        tags=["v1"],
+        summary="메뉴판 OCR 추출",
+        description="메뉴판 이미지를 OCR 관점으로 읽어 메뉴명 목록을 추출합니다.",
+        operation_id="ocrMenuBoardV1",
+        response_model=ApiSuccessResponse[PythonMenuOcrResponse],
+        responses={
+            400: {"model": ApiErrorResponse},
+            500: {"model": ApiErrorResponse},
+            413: {"model": ApiErrorResponse},
+        },
+    )
+    async def ocr_menu_board_v1(
+        request: Request,
+        image: UploadFile = File(...),
+    ):
+        try:
+            validate_accept_language(request.headers.get("Accept-Language"))
+        except ValueError as e:
+            return _v1_bad_request(str(e))
+        if client is None:
+            return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
+
+        image_bytes = await image.read()
+        mime_type = image.content_type or "image/jpeg"
+        if not image_bytes:
+            return _v1_bad_request("이미지 파일이 비어 있습니다.")
+        if len(image_bytes) > MAX_IMAGE_SIZE:
+            return v1_error("COM_001", "이미지 파일이 너무 큽니다 (최대 10MB).", status_code=413)
+        if mime_type not in ALLOWED_MIME_TYPES:
+            return _v1_bad_request(f"지원하지 않는 이미지 형식: {mime_type}")
+
+        parsed = await asyncio.to_thread(service.extract_menu_text_from_image, image_bytes, mime_type)
+        return v1_success(
+            {
+                "rawText": parsed.get("rawText", ""),
+                "menus": [{"menuName": name} for name in (parsed.get("menuNames") or [])],
+            }
+        )
+
+    @router.post(
+        "/python/menus/analyze-from-ocr",
+        tags=["v1"],
+        summary="메뉴판 OCR 후 메뉴 분석",
+        description="메뉴판 OCR 결과를 기반으로 메뉴 분석을 연속 수행합니다.",
+        operation_id="analyzeMenusFromOcrV1",
+        response_model=ApiSuccessResponse[PythonMenuAnalysisResponse],
+        responses={
+            400: {"model": ApiErrorResponse},
+            500: {"model": ApiErrorResponse},
+            413: {"model": ApiErrorResponse},
+        },
+    )
+    async def analyze_menus_from_ocr_v1(
+        request: Request,
+        image: UploadFile = File(...),
+        startMenuId: int = Form(default=1),
+    ):
+        try:
+            validate_accept_language(request.headers.get("Accept-Language"))
+        except ValueError as e:
+            return _v1_bad_request(str(e))
+        if client is None:
+            return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
+        if startMenuId < 1:
+            return _v1_bad_request("startMenuId는 1 이상이어야 합니다.")
+
+        image_bytes = await image.read()
+        mime_type = image.content_type or "image/jpeg"
+        if not image_bytes:
+            return _v1_bad_request("이미지 파일이 비어 있습니다.")
+        if len(image_bytes) > MAX_IMAGE_SIZE:
+            return v1_error("COM_001", "이미지 파일이 너무 큽니다 (최대 10MB).", status_code=413)
+        if mime_type not in ALLOWED_MIME_TYPES:
+            return _v1_bad_request(f"지원하지 않는 이미지 형식: {mime_type}")
+
+        parsed = await asyncio.to_thread(service.extract_menu_text_from_image, image_bytes, mime_type)
+        menu_names = parsed.get("menuNames") or []
+        targets = [
+            PythonMenuAnalysisTargetDto(menuId=startMenuId + idx, menuName=menu_name)
+            for idx, menu_name in enumerate(menu_names)
+        ]
+        if not targets:
+            return v1_success({"results": []})
+        results = await service.analyze_menus(targets, max_concurrency=cfg.ai_max_concurrent_tasks)
         return v1_success({"results": results})
 
     @router.post(
