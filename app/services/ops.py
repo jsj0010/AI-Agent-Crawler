@@ -301,7 +301,11 @@ JSON 객체 하나만 출력:
     raw = (getattr(resp, "text", "") or "").strip()
     if not raw:
         raise RuntimeError("모델 OCR 응답이 비어 있습니다.")
-    parsed = json.loads(raw)
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error("Failed to parse Gemini OCR response: %s", raw)
+        raise RuntimeError(f"모델 OCR 응답이 유효한 JSON이 아닙니다: {e}") from e
     if not isinstance(parsed, dict):
         raise RuntimeError("모델 OCR 응답 JSON이 객체 형태가 아닙니다.")
 
@@ -535,11 +539,17 @@ def map_ingredient_code(token: str) -> str | None:
         return normalized_upper
 
     lowered = normalized.lower()
-    by_keyword = ALLERGY_KEYWORD_TO_API_CODE.get(lowered) or ALLERGY_KEYWORD_TO_API_CODE.get(normalized)
+    by_keyword = ALLERGY_KEYWORD_TO_API_CODE.get(lowered)
     if by_keyword:
         return by_keyword
     for keyword, code in ALLERGY_KEYWORD_TO_API_CODE.items():
-        if keyword and keyword in lowered:
+        if not keyword:
+            continue
+        if keyword.isascii():
+            if re.search(rf"\b{re.escape(keyword)}\b", lowered):
+                return code
+            continue
+        if keyword in normalized:
             return code
     alias_key = normalized.lower() if normalized.isascii() else normalized
     canonical = ALIAS_TO_CANONICAL.get(normalized) or ALIAS_TO_CANONICAL.get(alias_key)

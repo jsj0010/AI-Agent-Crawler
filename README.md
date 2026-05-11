@@ -38,7 +38,7 @@ python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
 
 - Base URL: `/api/v1`
 - 헤더:
-  - `Content-Type: application/json`
+  - `Content-Type`: 기본은 `application/json`, 이미지 업로드 API는 `multipart/form-data`
   - `Accept-Language: ko | en | zh-CN | vi | ja` (`en-US`, `ko-KR` 같은 locale 변형도 허용)
 - 성공 응답:
 
@@ -565,6 +565,7 @@ Type=simple
 User=ubuntu
 WorkingDirectory=/opt/ai-agent-crawler
 Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=/opt/ai-agent-crawler/.env
 ExecStart=/opt/ai-agent-crawler/.venv/bin/python3 -m uvicorn main:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=3

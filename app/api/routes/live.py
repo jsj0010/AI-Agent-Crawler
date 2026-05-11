@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import requests
 from fastapi import APIRouter, Body, File, Form, Request, UploadFile
+from google.genai import errors as genai_errors
 
 from app.config.runtime import ALLOWED_MIME_TYPES, API_V1_PREFIX, MAX_IMAGE_SIZE, RuntimeContext
 from app.schemas.api_models import (
@@ -53,11 +55,31 @@ def _v1_bad_request(msg: str):
     return v1_error("COM_001", msg, status_code=400)
 
 
+def _validate_image_upload_v1(image_bytes: bytes, mime_type: str) -> tuple[bool, Any]:
+    if not image_bytes:
+        return False, _v1_bad_request("이미지 파일이 비어 있습니다.")
+    if len(image_bytes) > MAX_IMAGE_SIZE:
+        return False, v1_error("COM_001", "이미지 파일이 너무 큽니다 (최대 10MB).", status_code=413)
+    if mime_type not in ALLOWED_MIME_TYPES:
+        return False, _v1_bad_request(f"지원하지 않는 이미지 형식: {mime_type}")
+    return True, None
+
+
 def _safe_float(value: object, default: float = 0.5) -> float:
     try:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _map_ocr_exception_to_v1_error(exc: Exception):
+    if isinstance(exc, RuntimeError) and "GEMINI_API_KEY is not set" in str(exc):
+        return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
+    if isinstance(exc, (genai_errors.ClientError, genai_errors.ServerError)):
+        logger.warning("upstream gemini call failed: %s", exc)
+        return v1_error("PYM_502", "외부 AI 서비스 호출에 실패했습니다. 잠시 후 다시 시도해주세요.", status_code=502)
+    logger.exception("unexpected OCR/analyze-from-ocr error")
+    return v1_error("PYM_500", "요청 처리 중 내부 오류가 발생했습니다.", status_code=500)
 
 
 def create_v1_router(ctx: RuntimeContext) -> APIRouter:
@@ -224,16 +246,16 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
 
         image_bytes = await image.read()
         mime_type = image.content_type or "image/jpeg"
-        if not image_bytes:
-            return _v1_bad_request("이미지 파일이 비어 있습니다.")
-        if len(image_bytes) > MAX_IMAGE_SIZE:
-            return v1_error("COM_001", "이미지 파일이 너무 큽니다 (최대 10MB).", status_code=413)
-        if mime_type not in ALLOWED_MIME_TYPES:
-            return _v1_bad_request(f"지원하지 않는 이미지 형식: {mime_type}")
+        valid, err = _validate_image_upload_v1(image_bytes, mime_type)
+        if not valid:
+            return err
         if client is None:
             return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
 
-        parsed = await asyncio.to_thread(service.extract_menu_text_from_image, image_bytes, mime_type)
+        try:
+            parsed = await asyncio.to_thread(service.extract_menu_text_from_image, image_bytes, mime_type)
+        except Exception as exc:
+            return _map_ocr_exception_to_v1_error(exc)
         return v1_success(
             {
                 "rawText": parsed.get("rawText", ""),
@@ -257,27 +279,25 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
     async def analyze_menus_from_ocr_v1(
         request: Request,
         image: UploadFile = File(...),
-        startMenuId: int = Form(default=1),
+        startMenuId: int = Form(default=1, ge=1),
     ):
         try:
             validate_accept_language(request.headers.get("Accept-Language"))
         except ValueError as e:
             return _v1_bad_request(str(e))
-        if startMenuId < 1:
-            return _v1_bad_request("startMenuId는 1 이상이어야 합니다.")
 
         image_bytes = await image.read()
         mime_type = image.content_type or "image/jpeg"
-        if not image_bytes:
-            return _v1_bad_request("이미지 파일이 비어 있습니다.")
-        if len(image_bytes) > MAX_IMAGE_SIZE:
-            return v1_error("COM_001", "이미지 파일이 너무 큽니다 (최대 10MB).", status_code=413)
-        if mime_type not in ALLOWED_MIME_TYPES:
-            return _v1_bad_request(f"지원하지 않는 이미지 형식: {mime_type}")
+        valid, err = _validate_image_upload_v1(image_bytes, mime_type)
+        if not valid:
+            return err
         if client is None:
             return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
 
-        parsed = await asyncio.to_thread(service.extract_menu_text_from_image, image_bytes, mime_type)
+        try:
+            parsed = await asyncio.to_thread(service.extract_menu_text_from_image, image_bytes, mime_type)
+        except Exception as exc:
+            return _map_ocr_exception_to_v1_error(exc)
         menu_names = parsed.get("menuNames") or []
         targets = [
             PythonMenuAnalysisTargetDto(menuId=startMenuId + idx, menuName=menu_name)
@@ -318,16 +338,13 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
 
         image_bytes = await image.read()
         mime_type = image.content_type or "image/jpeg"
-        if not image_bytes:
-            return _v1_bad_request("이미지 파일이 비어 있습니다.")
-        if len(image_bytes) > MAX_IMAGE_SIZE:
-            return v1_error("COM_001", "이미지 파일이 너무 큽니다 (최대 10MB).", status_code=413)
-        if mime_type not in ALLOWED_MIME_TYPES:
-            return _v1_bad_request(f"지원하지 않는 이미지 형식: {mime_type}")
+        valid, err = _validate_image_upload_v1(image_bytes, mime_type)
+        if not valid:
+            return err
         if client is None:
             return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
 
-        analyzed_at = datetime.now(ZoneInfo(cfg.timezone_name)).strftime("%Y-%m-%dT%H:%M:%S")
+        analyzed_at = datetime.now(ZoneInfo(cfg.timezone_name)).replace(microsecond=0)
         try:
             analysis = await asyncio.to_thread(
                 analyze_food_image_bytes,
@@ -338,7 +355,7 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
             )
             ingredient_codes: list[dict[str, object]] = []
             dedup: set[str] = set()
-            for idx, item in enumerate(analysis.get("추정_식재료") or []):
+            for item in (analysis.get("추정_식재료") or []):
                 if not isinstance(item, dict):
                     continue
                 code = service.map_ingredient_code(str(item.get("재료", "")).strip())
@@ -364,6 +381,7 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
                 "ingredients": ingredient_codes,
             }
         except Exception as e:
+            logger.exception("analyze_menu_image_v1 failed")
             result = {
                 "menuId": menuId,
                 "menuName": normalized_name,
