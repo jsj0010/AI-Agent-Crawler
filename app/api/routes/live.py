@@ -221,8 +221,6 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
             validate_accept_language(request.headers.get("Accept-Language"))
         except ValueError as e:
             return _v1_bad_request(str(e))
-        if client is None:
-            return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
 
         image_bytes = await image.read()
         mime_type = image.content_type or "image/jpeg"
@@ -232,6 +230,8 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
             return v1_error("COM_001", "이미지 파일이 너무 큽니다 (최대 10MB).", status_code=413)
         if mime_type not in ALLOWED_MIME_TYPES:
             return _v1_bad_request(f"지원하지 않는 이미지 형식: {mime_type}")
+        if client is None:
+            return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
 
         parsed = await asyncio.to_thread(service.extract_menu_text_from_image, image_bytes, mime_type)
         return v1_success(
@@ -263,8 +263,6 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
             validate_accept_language(request.headers.get("Accept-Language"))
         except ValueError as e:
             return _v1_bad_request(str(e))
-        if client is None:
-            return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
         if startMenuId < 1:
             return _v1_bad_request("startMenuId는 1 이상이어야 합니다.")
 
@@ -276,6 +274,8 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
             return v1_error("COM_001", "이미지 파일이 너무 큽니다 (최대 10MB).", status_code=413)
         if mime_type not in ALLOWED_MIME_TYPES:
             return _v1_bad_request(f"지원하지 않는 이미지 형식: {mime_type}")
+        if client is None:
+            return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
 
         parsed = await asyncio.to_thread(service.extract_menu_text_from_image, image_bytes, mime_type)
         menu_names = parsed.get("menuNames") or []
@@ -311,8 +311,6 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
             validate_accept_language(request.headers.get("Accept-Language"))
         except ValueError as e:
             return _v1_bad_request(str(e))
-        if client is None:
-            return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
 
         normalized_name = menuName.strip()
         if not normalized_name:
@@ -326,6 +324,8 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
             return v1_error("COM_001", "이미지 파일이 너무 큽니다 (최대 10MB).", status_code=413)
         if mime_type not in ALLOWED_MIME_TYPES:
             return _v1_bad_request(f"지원하지 않는 이미지 형식: {mime_type}")
+        if client is None:
+            return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
 
         analyzed_at = datetime.now(ZoneInfo(cfg.timezone_name)).strftime("%Y-%m-%dT%H:%M:%S")
         try:
