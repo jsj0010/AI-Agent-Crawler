@@ -21,10 +21,35 @@ Spring Boot 내부 호출 전용 Python API 서버입니다. 현재는 아래 AP
 
 ## 실행
 
+### 로컬 (직접 실행)
+
 ```bash
 pip install -r requirements.txt
 cp .env.example .env
 python3 -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+### Docker
+
+```bash
+cp .env.example .env
+# .env 파일에 GEMINI_API_KEY 등 필요한 값 설정
+
+# docker compose로 실행
+docker compose up -d
+
+# 로그 확인
+docker compose logs -f
+
+# 중지
+docker compose down
+```
+
+빌드만 따로 하려면:
+
+```bash
+docker build -t ai-agent-crawler .
+docker run -d --env-file .env -p 8000:8000 ai-agent-crawler
 ```
 
 문서 확인:
