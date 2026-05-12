@@ -2,12 +2,24 @@
 
 Spring Boot 내부 호출 전용 Python API 서버입니다. 현재는 아래 API를 제공합니다.
 
+### Wrapped API (`/api/v1/python/...`)
+
+`{success, data}` 형태로 래핑된 응답을 반환합니다.
+
 - `POST /api/v1/python/meals/crawl`
 - `POST /api/v1/python/menus/analyze`
 - `POST /api/v1/python/menus/ocr`
 - `POST /api/v1/python/menus/analyze-from-ocr`
 - `POST /api/v1/python/menus/analyze-image`
 - `POST /api/v1/python/menus/translate`
+
+### Spring Native API (Unwrapped)
+
+Spring WebClient가 직접 파싱할 수 있도록 래핑 없이 결과를 반환합니다.
+
+- `POST /api/v1/crawl/meals`
+- `POST /api/v1/menus/analyze`
+- `POST /api/v1/translations`
 
 ---
 
@@ -65,7 +77,8 @@ docker run -d --env-file .env -p 8000:8000 ai-agent-crawler
 - 헤더:
   - `Content-Type`: 기본은 `application/json`, 이미지 업로드 API는 `multipart/form-data`
   - `Accept-Language: ko | en | zh-CN | vi | ja` (`en-US`, `ko-KR` 같은 locale 변형도 허용)
-- 성공 응답:
+
+### Wrapped 응답 (`/api/v1/python/...`)
 
 ```json
 {
@@ -74,7 +87,19 @@ docker run -d --env-file .env -p 8000:8000 ai-agent-crawler
 }
 ```
 
-- 실패 응답:
+### Unwrapped 응답 (Spring Native)
+
+래핑 없이 결과를 직접 반환합니다.
+
+```json
+{
+  "schoolName": "...",
+  "cafeteriaName": "...",
+  "meals": [...]
+}
+```
+
+### 실패 응답 (공통)
 
 ```json
 {
@@ -88,6 +113,8 @@ docker run -d --env-file .env -p 8000:8000 ai-agent-crawler
 
 ## API 목록
 
+### Wrapped API
+
 | 메서드 | 경로 | 설명 |
 |---|---|---|
 | `POST` | `/api/v1/python/meals/crawl` | 주간 식단 크롤링 |
@@ -96,6 +123,14 @@ docker run -d --env-file .env -p 8000:8000 ai-agent-crawler
 | `POST` | `/api/v1/python/menus/analyze-from-ocr` | 메뉴판 OCR 후 연속 분석 |
 | `POST` | `/api/v1/python/menus/analyze-image` | 이미지 기반 메뉴 재료/알레르기 코드 분석 |
 | `POST` | `/api/v1/python/menus/translate` | 메뉴명 번역 |
+
+### Spring Native API (Unwrapped)
+
+| 메서드 | 경로 | 설명 |
+|---|---|---|
+| `POST` | `/api/v1/crawl/meals` | 식단 크롤링 (래핑 없이 반환) |
+| `POST` | `/api/v1/menus/analyze` | 메뉴 AI 분석 (래핑 없이 반환) |
+| `POST` | `/api/v1/translations` | 자유 텍스트 번역 |
 
 ---
 
@@ -700,3 +735,104 @@ curl -sS -X POST "https://api.your-domain.com/api/v1/python/menus/analyze" \
 - `AI_001` 응답: `GEMINI_API_KEY` 누락/오타
 - OCR 결과 빈 값: 업로드 이미지 품질/해상도 확인, 메뉴판 crop 후 재시도
 - 크롤링 차단: `CRAWL_SOURCE_ALLOWLIST` 설정값과 실제 도메인 일치 확인
+
+---
+
+## Spring Native API 상세
+
+Spring WebClient가 직접 파싱할 수 있도록 `{success, data}` 래핑 없이 결과를 반환합니다.
+
+### `POST /api/v1/crawl/meals`
+
+식단 크롤링 (Wrapped 버전과 동일한 로직, 응답만 unwrapped).
+
+**요청:**
+
+```json
+{
+  "schoolName": "금오공과대학교",
+  "cafeteriaName": "학생식당",
+  "sourceUrl": "https://www.kumoh.ac.kr/ko/restaurant01.do",
+  "startDate": "2026-05-05",
+  "endDate": "2026-05-11"
+}
+```
+
+**응답 (200):**
+
+```json
+{
+  "schoolName": "금오공과대학교",
+  "cafeteriaName": "학생식당",
+  "sourceUrl": "https://www.kumoh.ac.kr/ko/restaurant01.do",
+  "startDate": "2026-05-05",
+  "endDate": "2026-05-11",
+  "meals": [
+    {
+      "mealDate": "2026-05-05",
+      "mealType": "LUNCH",
+      "menus": [{"cornerName": "학생식당", "displayOrder": 1, "menuName": "김치찌개"}]
+    }
+  ]
+}
+```
+
+---
+
+### `POST /api/v1/menus/analyze`
+
+메뉴 AI 분석 (Wrapped 버전과 동일한 로직, 응답만 unwrapped).
+
+**요청:**
+
+```json
+{
+  "menus": [{"menuId": 1, "menuName": "김치찌개"}]
+}
+```
+
+**응답 (200):**
+
+```json
+{
+  "results": [
+    {
+      "menuId": 1,
+      "menuName": "김치찌개",
+      "status": "COMPLETED",
+      "reason": null,
+      "modelName": "gemini",
+      "modelVersion": "gemini-2.5-flash",
+      "analyzedAt": "2026-05-12T12:00:00",
+      "ingredients": [{"ingredientCode": "PORK", "confidence": 0.95}]
+    }
+  ]
+}
+```
+
+---
+
+### `POST /api/v1/translations`
+
+자유 텍스트 번역.
+
+**요청:**
+
+```json
+{
+  "sourceLang": "ko",
+  "targetLang": "en",
+  "text": "이 메뉴에 땅콩이 들어가나요?"
+}
+```
+
+**응답 (200):**
+
+```json
+{
+  "success": true,
+  "data": {
+    "translatedText": "Does this menu contain peanuts?"
+  }
+}
+```
