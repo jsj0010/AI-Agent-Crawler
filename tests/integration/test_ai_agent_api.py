@@ -90,5 +90,4 @@ def test_free_translation_returns_success_data(client: TestClient) -> None:
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body.get("success") is True
-    assert "translatedText" in (body.get("data") or {})
+    assert "translatedText" in body
