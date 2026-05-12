@@ -95,7 +95,7 @@ def create_spring_native_router(ctx: RuntimeContext) -> APIRouter:
         except ValueError as e:
             return v1_error("COM_001", str(e), status_code=400)
         if client is None:
-            return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
+            return v1_error("AI_001", "AI 서비스가 구성되지 않았습니다.", status_code=500)
 
         results = await service.analyze_menus(payload.menus, max_concurrency=cfg.ai_max_concurrent_tasks)
         return {"results": results}
@@ -115,7 +115,7 @@ def create_spring_native_router(ctx: RuntimeContext) -> APIRouter:
         except ValueError as e:
             return v1_error("COM_001", str(e), status_code=400)
         if client is None:
-            return v1_error("AI_001", "GEMINI_API_KEY is not set", status_code=500)
+            return v1_error("AI_001", "AI 서비스가 구성되지 않았습니다.", status_code=500)
 
         translated = await asyncio.to_thread(
             service.translate_text,
