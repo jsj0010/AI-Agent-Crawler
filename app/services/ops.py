@@ -393,11 +393,15 @@ def _is_menu_noise(line: str) -> bool:
     return False
 
 
+_KNOWN_CORNERS = frozenset({"조식", "중식", "석식", "일품요리"})
+
+
 def parse_menu_cell(cell_text: str, fallback_corner: str) -> tuple[str, str, list[str]]:
     """셀 텍스트를 파싱하여 (cornerName, mealType, [menuName, ...])을 반환합니다.
 
-    구분자(|||)가 있으면 개별 항목으로 분리하고,
-    없으면 셀 전체를 단일 메뉴로 취급합니다(하위 호환).
+    구분자(|||)를 기준으로 항목을 분리하며,
+    필터링 후 유효 항목이 하나만 남고 그것이 알려진 코너명이 아닌 경우
+    메뉴명으로 취급합니다.
     """
     has_delimiters = MENU_ITEM_DELIM in cell_text
     items = [s.strip() for s in cell_text.split(MENU_ITEM_DELIM) if s.strip()]
@@ -417,9 +421,10 @@ def parse_menu_cell(cell_text: str, fallback_corner: str) -> tuple[str, str, lis
             continue
         menu_items.append(item)
 
-    if not has_delimiters and not menu_items and corner_name:
-        menu_items = [corner_name]
-        corner_name = fallback_corner
+    if not menu_items and corner_name:
+        if not has_delimiters or corner_name not in _KNOWN_CORNERS:
+            menu_items = [corner_name]
+            corner_name = fallback_corner
 
     if not corner_name:
         corner_name = fallback_corner

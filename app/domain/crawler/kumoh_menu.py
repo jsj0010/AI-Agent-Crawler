@@ -35,12 +35,13 @@ def parse_table_from_html(html: str) -> pd.DataFrame | None:
     preprocessed = preprocess_menu_html(html)
     try:
         tables = pd.read_html(StringIO(preprocessed))
-    except ValueError:
+    except (ValueError, ParserError):
         return None
     if not tables:
         return None
     df = tables[0].copy()
     df.columns = [str(c).strip() for c in df.columns]
+    df = df.replace(r"\s+", " ", regex=True)
     return df
 
 

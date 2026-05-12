@@ -56,18 +56,18 @@ class TestParseMenuCell:
 
     def test_operation_closed_returns_empty(self):
         cell = f"일품요리{MENU_ITEM_DELIM} 식당 운영 없음{MENU_ITEM_DELIM}"
-        corner, meal_type, items = parse_menu_cell(cell, "학생식당")
+        _corner, _meal_type, items = parse_menu_cell(cell, "학생식당")
         assert items == []
 
     def test_no_delimiter_fallback(self):
         cell = "김치찌개"
-        corner, meal_type, items = parse_menu_cell(cell, "학생식당")
+        corner, _meal_type, items = parse_menu_cell(cell, "학생식당")
         assert corner == "학생식당"
         assert items == ["김치찌개"]
 
     def test_no_delimiter_operation_closed(self):
         cell = "조식 식당 운영 없음"
-        _, _, items = parse_menu_cell(cell, "학생식당")
+        _corner, _meal_type, items = parse_menu_cell(cell, "학생식당")
         assert items == []
 
     def test_dinner_meal_type(self):
@@ -76,6 +76,21 @@ class TestParseMenuCell:
         assert corner == "석식"
         assert meal_type == "DINNER"
         assert items == ["돈까스"]
+
+    def test_single_menu_with_delimiter_not_lost(self):
+        """단일 메뉴만 <li>로 감싸진 경우에도 메뉴가 누락되지 않아야 합니다."""
+        cell = f"김치찌개{MENU_ITEM_DELIM}"
+        corner, _meal_type, items = parse_menu_cell(cell, "학생식당")
+        assert corner == "학생식당"
+        assert items == ["김치찌개"]
+
+    def test_known_corner_alone_with_delimiter_returns_empty(self):
+        """알려진 코너명만 남은 경우 메뉴 없이 빈 리스트를 반환합니다."""
+        cell = f"조식{MENU_ITEM_DELIM}"
+        corner, meal_type, items = parse_menu_cell(cell, "학생식당")
+        assert corner == "조식"
+        assert meal_type == "BREAKFAST"
+        assert items == []
 
 
 class TestBuildDailyMeals:
