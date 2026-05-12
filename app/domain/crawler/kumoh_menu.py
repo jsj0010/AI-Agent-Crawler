@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from io import StringIO
 
 import pandas as pd
@@ -17,6 +18,31 @@ URLS = {
     "분식당": "https://www.kumoh.ac.kr/ko/restaurant04.do",
 }
 
+MENU_ITEM_DELIM = "|||"
+_LI_CLOSE_RE = re.compile(r"</li\s*>", re.IGNORECASE)
+_P_CLOSE_RE = re.compile(r"</p\s*>", re.IGNORECASE)
+
+
+def preprocess_menu_html(html: str) -> str:
+    """<li>, <p> 태그 뒤에 구분자를 삽입하여 pd.read_html() 이후에도 항목 경계를 보존합니다."""
+    html = _P_CLOSE_RE.sub(f"</p>{MENU_ITEM_DELIM}", html)
+    html = _LI_CLOSE_RE.sub(f"</li>{MENU_ITEM_DELIM}", html)
+    return html
+
+
+def parse_table_from_html(html: str) -> pd.DataFrame | None:
+    """HTML을 전처리한 뒤 첫 번째 테이블을 DataFrame으로 반환합니다."""
+    preprocessed = preprocess_menu_html(html)
+    try:
+        tables = pd.read_html(StringIO(preprocessed))
+    except ValueError:
+        return None
+    if not tables:
+        return None
+    df = tables[0].copy()
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
+
 
 def fetch_html(url: str) -> str:
     res = requests.get(url, timeout=15)
@@ -30,15 +56,9 @@ def load_menus() -> dict[str, pd.DataFrame]:
     for name, url in URLS.items():
         try:
             html = fetch_html(url)
-            try:
-                tables = pd.read_html(StringIO(html))
-            except ValueError:
+            df = parse_table_from_html(html)
+            if df is None:
                 continue
-            if not tables:
-                continue
-            df = tables[0].copy()
-            df.columns = [str(c).strip() for c in df.columns]
-            df = df.replace(r"\s+", " ", regex=True)
             menus[name] = df
         except (
             requests.exceptions.RequestException,

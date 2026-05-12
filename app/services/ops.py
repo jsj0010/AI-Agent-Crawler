@@ -22,7 +22,7 @@ from pandas.errors import ParserError
 
 from app.config.runtime import ALLOWED_ACCEPT_LANGUAGES, CANONICAL_TO_INGREDIENT_CODE, ServiceConfig
 from app.domain.allergy.agent import analyze_menus_with_gemini, iter_menu_entries, results_to_dataframe
-from app.domain.crawler.kumoh_menu import load_menus
+from app.domain.crawler.kumoh_menu import MENU_ITEM_DELIM, load_menus, parse_table_from_html
 from app.domain.crawler.push_menus import post_menu_ingest
 from user_features.allergen_catalog import ALIAS_TO_CANONICAL
 from user_features.i18n_summary import summarize_for_locale
@@ -378,6 +378,56 @@ def infer_meal_type(column_name: str) -> str:
     return "LUNCH"
 
 
+_TIME_RANGE_RE = re.compile(r"^\d{1,2}:\d{2}\s*[~\-]\s*\d{1,2}:\d{2}$")
+_META_BRACKET_RE = re.compile(r"^\[.*\]$")
+
+
+def _is_menu_noise(line: str) -> bool:
+    """시간 범위, 대괄호 메타정보, 별표 안내문 등 메뉴명이 아닌 항목 판별."""
+    if _TIME_RANGE_RE.match(line):
+        return True
+    if _META_BRACKET_RE.match(line):
+        return True
+    if line.startswith("*"):
+        return True
+    return False
+
+
+def parse_menu_cell(cell_text: str, fallback_corner: str) -> tuple[str, str, list[str]]:
+    """셀 텍스트를 파싱하여 (cornerName, mealType, [menuName, ...])을 반환합니다.
+
+    구분자(|||)가 있으면 개별 항목으로 분리하고,
+    없으면 셀 전체를 단일 메뉴로 취급합니다(하위 호환).
+    """
+    has_delimiters = MENU_ITEM_DELIM in cell_text
+    items = [s.strip() for s in cell_text.split(MENU_ITEM_DELIM) if s.strip()]
+
+    corner_name = ""
+    menu_items: list[str] = []
+
+    for item in items:
+        if not item or item.lower() == "nan":
+            continue
+        if "운영 없음" in item:
+            continue
+        if _is_menu_noise(item):
+            continue
+        if not corner_name:
+            corner_name = item
+            continue
+        menu_items.append(item)
+
+    if not has_delimiters and not menu_items and corner_name:
+        menu_items = [corner_name]
+        corner_name = fallback_corner
+
+    if not corner_name:
+        corner_name = fallback_corner
+
+    meal_type = infer_meal_type(corner_name)
+    return corner_name, meal_type, menu_items
+
+
 def sanitize_url_for_log(source_url: str) -> str:
     parsed = urlparse(source_url)
     host = parsed.hostname or ""
@@ -410,37 +460,39 @@ def build_daily_meals(*, cafeteria_name: str, table: Any, start: date, end: date
         meal_date = extract_date_from_column(str(column), start, end)
         if meal_date is None or not (start <= meal_date <= end):
             continue
-        menus: list[dict[str, Any]] = []
-        display_order = 1
-        first_column = table.columns[0] if len(table.columns) > 0 else None
+
+        meals_by_type: dict[str, list[dict[str, Any]]] = {}
+
         for _, row in table.iterrows():
-            raw_menu = row[column]
-            if raw_menu is None:
+            raw = row[column]
+            if raw is None:
                 continue
-            menu_name = str(raw_menu).strip()
-            if not menu_name or menu_name.lower() == "nan" or "운영 없음" in menu_name:
+            cell_text = str(raw).strip()
+            if not cell_text or cell_text.lower() == "nan":
                 continue
-            corner_name = cafeteria_name
-            if first_column is not None and first_column != column:
-                first_col_text = str(row[first_column]).strip()
-                if first_col_text and first_col_text.lower() != "nan":
-                    corner_name = first_col_text
-            menus.append(
-                {
-                    "cornerName": corner_name,
-                    "displayOrder": display_order,
-                    "menuName": menu_name,
-                }
-            )
-            display_order += 1
-        if menus:
+
+            corner_name, meal_type, menu_items = parse_menu_cell(cell_text, cafeteria_name)
+            if not menu_items:
+                continue
+
+            if meal_type not in meals_by_type:
+                meals_by_type[meal_type] = []
+            for item in menu_items:
+                meals_by_type[meal_type].append(
+                    {"cornerName": corner_name, "menuName": item}
+                )
+
+        for meal_type, menu_list in meals_by_type.items():
+            for i, m in enumerate(menu_list, 1):
+                m["displayOrder"] = i
             meals.append(
                 {
                     "mealDate": meal_date.isoformat(),
-                    "mealType": infer_meal_type(str(column)),
-                    "menus": menus,
+                    "mealType": meal_type,
+                    "menus": menu_list,
                 }
             )
+
     meals.sort(
         key=lambda item: (
             item["mealDate"],
@@ -460,11 +512,8 @@ def load_menu_table_for_source(*, cafeteria_name: str, source_url: str) -> pd.Da
             raise requests.exceptions.RequestException("redirect is not allowed for source_url")
         response.raise_for_status()
         response.encoding = "utf-8"
-        tables = pd.read_html(StringIO(response.text))
-        if tables:
-            table = tables[0].copy()
-            table.columns = [str(c).strip() for c in table.columns]
-            table = table.replace(r"\s+", " ", regex=True)
+        table = parse_table_from_html(response.text)
+        if table is not None:
             return table
     except (
         requests.exceptions.RequestException,
@@ -608,6 +657,7 @@ __all__ = [
     "load_menu_table_for_source",
     "map_ingredient_code",
     "next_run",
+    "parse_menu_cell",
     "post_json",
     "run_weekly_crawl_once",
     "sanitize_url_for_log",
