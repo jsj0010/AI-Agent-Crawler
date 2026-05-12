@@ -15,6 +15,7 @@ from fastapi.exceptions import RequestValidationError
 
 from app.config.runtime import API_V1_PREFIX, RuntimeContext
 from app.api.routes.live import create_v1_router
+from app.api.routes.spring_native import create_spring_native_router
 from app.common.service_ops import next_run, run_weekly_crawl_once, v1_error
 
 logger = logging.getLogger(__name__)
@@ -77,4 +78,5 @@ def create_app(ctx: RuntimeContext) -> FastAPI:
         return await request_validation_exception_handler(request, exc)
 
     app.include_router(create_v1_router(ctx))
+    app.include_router(create_spring_native_router(ctx))
     return app
