@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
 
 import requests
 from fastapi import APIRouter, Body, Request
@@ -17,7 +16,6 @@ from app.common.service_ops import (
     CrawlSourceUpstreamError,
     sanitize_url_for_log,
     v1_error,
-    v1_success,
     validate_accept_language,
 )
 
@@ -123,6 +121,6 @@ def create_spring_native_router(ctx: RuntimeContext) -> APIRouter:
             payload.targetLang,
             payload.text,
         )
-        return v1_success({"translatedText": translated})
+        return {"translatedText": translated}
 
     return router
