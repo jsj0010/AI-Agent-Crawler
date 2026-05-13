@@ -12,11 +12,24 @@ from pandas.errors import ParserError
 
 logger = logging.getLogger(__name__)
 
+# 금오공대 식당 페이지: restaurant01=일품, 02=정찬, 04=분식
+# (구명칭 학생식당/교직원식당 은 normalize_kumoh_cafeteria_name 에서 신규 명칭으로 매핑)
 URLS = {
-    "학생식당": "https://www.kumoh.ac.kr/ko/restaurant01.do",
-    "교직원식당": "https://www.kumoh.ac.kr/ko/restaurant02.do",
+    "일품식당": "https://www.kumoh.ac.kr/ko/restaurant01.do",
+    "정찬식당": "https://www.kumoh.ac.kr/ko/restaurant02.do",
     "분식당": "https://www.kumoh.ac.kr/ko/restaurant04.do",
 }
+
+CAFETERIA_ALIASES: dict[str, str] = {
+    "학생식당": "일품식당",
+    "교직원식당": "정찬식당",
+}
+
+
+def normalize_kumoh_cafeteria_name(name: str) -> str:
+    """백엔드·크롤 요청에 쓰는 식당 표기를 현행 명칭으로 통일합니다."""
+    stripped = (name or "").strip()
+    return CAFETERIA_ALIASES.get(stripped, stripped)
 
 MENU_ITEM_DELIM = "|||"
 _LI_CLOSE_RE = re.compile(r"</li\s*>", re.IGNORECASE)

@@ -373,12 +373,15 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
             result = {
                 "menuId": menuId,
                 "menuName": normalized_name,
-                "status": "COMPLETED",
+                "status": "SUCCESS",
                 "reason": None,
                 "modelName": "gemini",
                 "modelVersion": cfg.gemini_model,
                 "analyzedAt": analyzed_at,
+                "spicyLevel": 1,
+                "spicy_level": 1,
                 "ingredients": ingredient_codes,
+                "allergies": [],
             }
         except Exception as e:
             logger.exception("analyze_menu_image_v1 failed")
@@ -390,7 +393,10 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
                 "modelName": "gemini",
                 "modelVersion": cfg.gemini_model,
                 "analyzedAt": analyzed_at,
+                "spicyLevel": None,
+                "spicy_level": None,
                 "ingredients": [],
+                "allergies": [],
             }
         return v1_success({"results": [result]})
 

@@ -56,7 +56,7 @@ Spring Boot에서 Python 서버를 호출할 때 바로 참고할 수 있는 최
 ```json
 {
   "schoolName": "KUMOH",
-  "cafeteriaName": "학생식당",
+  "cafeteriaName": "일품식당",
   "sourceUrl": "https://www.kumoh.ac.kr/ko/restaurant01.do",
   "startDate": "2026-03-23",
   "endDate": "2026-03-27"
@@ -69,7 +69,7 @@ Spring Boot에서 Python 서버를 호출할 때 바로 참고할 수 있는 최
   "success": true,
   "data": {
     "schoolName": "KUMOH",
-    "cafeteriaName": "학생식당",
+    "cafeteriaName": "일품식당",
     "sourceUrl": "https://www.kumoh.ac.kr/ko/restaurant01.do",
     "startDate": "2026-03-23",
     "endDate": "2026-03-27",
@@ -79,7 +79,7 @@ Spring Boot에서 Python 서버를 호출할 때 바로 참고할 수 있는 최
         "mealType": "LUNCH",
         "menus": [
           {
-            "cornerName": "학생식당",
+            "cornerName": "일품요리",
             "displayOrder": 1,
             "menuName": "쌀밥 닭곰탕 ..."
           }

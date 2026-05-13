@@ -33,7 +33,7 @@ def test_spring_native_crawl_meals_returns_unwrapped_json(monkeypatch: pytest.Mo
     body = resp.json()
     assert "success" not in body
     assert body["schoolName"] == "금오공과대학교"
-    assert body["cafeteriaName"] == "학생식당"
+    assert body["cafeteriaName"] == "일품식당"
     assert "startDate" in body and "endDate" in body
     assert body["meals"] == []
 

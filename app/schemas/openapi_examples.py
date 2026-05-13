@@ -5,11 +5,11 @@ from __future__ import annotations
 # --- POST /api/v1/python/meals/crawl ---
 MEAL_CRAWL_REQUEST_OPENAPI_EXAMPLES: dict = {
     "기본": {
-        "summary": "금오공대 학생식당 주간 조회",
+        "summary": "금오공대 일품식당 주간 조회",
         "description": "Accept-Language: ko 권장",
         "value": {
             "schoolName": "금오공과대학교",
-            "cafeteriaName": "학생식당",
+            "cafeteriaName": "일품식당",
             "sourceUrl": "https://www.kumoh.ac.kr/ko/restaurant01.do",
             "startDate": "2026-04-21",
             "endDate": "2026-04-27",
@@ -21,7 +21,7 @@ MEAL_CRAWL_SUCCESS_EXAMPLE: dict = {
     "success": True,
     "data": {
         "schoolName": "금오공과대학교",
-        "cafeteriaName": "학생식당",
+        "cafeteriaName": "일품식당",
         "sourceUrl": "https://www.kumoh.ac.kr/ko/restaurant01.do",
         "startDate": "2026-04-21",
         "endDate": "2026-04-27",
@@ -30,8 +30,8 @@ MEAL_CRAWL_SUCCESS_EXAMPLE: dict = {
                 "mealDate": "2026-04-21",
                 "mealType": "LUNCH",
                 "menus": [
-                    {"cornerName": "학생식당", "displayOrder": 1, "menuName": "김치찌개"},
-                    {"cornerName": "학생식당", "displayOrder": 2, "menuName": "된장찌개"},
+                    {"cornerName": "일품요리", "displayOrder": 1, "menuName": "김치찌개"},
+                    {"cornerName": "일품요리", "displayOrder": 2, "menuName": "된장찌개"},
                 ],
             }
         ],

@@ -77,6 +77,10 @@ def create_app(ctx: RuntimeContext) -> FastAPI:
             )
         return await request_validation_exception_handler(request, exc)
 
+    @app.get("/health", tags=["ops"])
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
     app.include_router(create_v1_router(ctx))
     app.include_router(create_spring_native_router(ctx))
     return app

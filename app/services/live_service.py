@@ -20,6 +20,19 @@ BASE_INGREDIENT_CONFIDENCE = 0.95
 INGREDIENT_CONFIDENCE_DECAY = 0.07
 MIN_INGREDIENT_CONFIDENCE = 0.5
 ALLERGEN_FALLBACK_CONFIDENCE = 0.8
+SPICY_LEVEL_MIN = 1
+SPICY_LEVEL_MAX = 5
+
+
+def _clamp_spicy_level(raw: Any) -> int:
+    """모델/호환용 spicyLevel 값을 1~5 정수로 맞춘다."""
+    if raw is None:
+        return SPICY_LEVEL_MIN
+    try:
+        n = int(float(raw))
+    except (TypeError, ValueError):
+        return SPICY_LEVEL_MIN
+    return max(SPICY_LEVEL_MIN, min(SPICY_LEVEL_MAX, n))
 
 
 class LiveService:
@@ -123,12 +136,12 @@ class LiveService:
                 async with semaphore:
                     analysis = await asyncio.to_thread(self.analyze_food_text, target.menuName)
                 ingredient_codes: list[dict[str, Any]] = []
-                dedup: set[str] = set()
+                ing_dedup: set[str] = set()
                 for idx, ingredient in enumerate(analysis.get("ingredientsKo") or []):
                     code = self.map_ingredient_code(str(ingredient).strip())
-                    if not code or code in dedup:
+                    if not code or code in ing_dedup:
                         continue
-                    dedup.add(code)
+                    ing_dedup.add(code)
                     ingredient_codes.append(
                         {
                             "ingredientCode": code,
@@ -141,25 +154,33 @@ class LiveService:
                             ),
                         }
                     )
+                allergy_codes: list[dict[str, Any]] = []
+                allergy_dedup: set[str] = set()
                 for allergen in analysis.get("allergensKo") or []:
                     if not isinstance(allergen, dict):
                         continue
                     code = self.map_ingredient_code(str(allergen.get("name", "")).strip())
-                    if not code or code in dedup:
+                    if not code or code in allergy_dedup:
                         continue
-                    dedup.add(code)
-                    ingredient_codes.append(
-                        {"ingredientCode": code, "confidence": ALLERGEN_FALLBACK_CONFIDENCE}
+                    allergy_dedup.add(code)
+                    allergy_codes.append(
+                        {"allergyCode": code, "confidence": ALLERGEN_FALLBACK_CONFIDENCE}
                     )
+                spicy = _clamp_spicy_level(
+                    analysis.get("spicyLevel") if analysis.get("spicyLevel") is not None else analysis.get("spicy_level")
+                )
                 return {
                     "menuId": target.menuId,
                     "menuName": target.menuName,
-                    "status": "COMPLETED",
+                    "status": "SUCCESS",
                     "reason": None,
                     "modelName": "gemini",
                     "modelVersion": self.cfg.gemini_model,
                     "analyzedAt": analyzed_at,
+                    "spicyLevel": spicy,
+                    "spicy_level": spicy,
                     "ingredients": ingredient_codes,
+                    "allergies": allergy_codes,
                 }
             except Exception as e:
                 return {
@@ -170,7 +191,10 @@ class LiveService:
                     "modelName": "gemini",
                     "modelVersion": self.cfg.gemini_model,
                     "analyzedAt": analyzed_at,
+                    "spicyLevel": None,
+                    "spicy_level": None,
                     "ingredients": [],
+                    "allergies": [],
                 }
 
         return await asyncio.gather(*[_analyze_single_menu(target) for target in menus])
