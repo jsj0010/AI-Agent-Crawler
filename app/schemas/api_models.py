@@ -101,6 +101,11 @@ class PythonMenuIngredientResultDto(BaseModel):
     confidence: float
 
 
+class PythonMenuAllergyResultDto(BaseModel):
+    allergyCode: str
+    confidence: float
+
+
 class PythonMenuAnalysisResultDto(BaseModel):
     menuId: int
     menuName: str
@@ -110,6 +115,8 @@ class PythonMenuAnalysisResultDto(BaseModel):
     modelVersion: str
     analyzedAt: datetime
     ingredients: list[PythonMenuIngredientResultDto]
+    allergies: list[PythonMenuAllergyResultDto] = Field(default_factory=list)
+    spicyLevel: Optional[int] = None
 
 
 class PythonMenuAnalysisResponse(BaseModel):

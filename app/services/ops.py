@@ -31,6 +31,20 @@ from user_features.payloads import build_extended_menu_payload
 DEFAULT_SOURCE_ALLOWLIST = {"www.kumoh.ac.kr", "kumoh.ac.kr"}
 MEAL_TYPE_ORDER = {"BREAKFAST": 0, "LUNCH": 1, "DINNER": 2}
 logger = logging.getLogger(__name__)
+
+SPICY_LEVEL_MIN = 1
+SPICY_LEVEL_MAX = 5
+
+
+def clamp_spicy_level(raw: Any) -> int:
+    """모델·JSON의 spicyLevel 값을 1~5 정수로 맞춘다. 공통 유틸."""
+    if raw is None:
+        return SPICY_LEVEL_MIN
+    try:
+        n = int(float(raw))
+    except (TypeError, ValueError):
+        return SPICY_LEVEL_MIN
+    return max(SPICY_LEVEL_MIN, min(SPICY_LEVEL_MAX, n))
 ALLERGY_KEYWORD_TO_API_CODE = {
     "mackerel": "MACKEREL",
     "고등어": "MACKEREL",
@@ -234,11 +248,7 @@ spicyLevel은 매운맛 강도로 정수 1(순함)~5(아주 매움)만 사용한
     parsed = json.loads(raw)
     if not isinstance(parsed, dict):
         raise RuntimeError("모델 응답 JSON이 객체 형태가 아닙니다.")
-    try:
-        sl = int(float(parsed.get("spicyLevel", 1)))
-        parsed["spicyLevel"] = max(1, min(5, sl))
-    except (TypeError, ValueError):
-        parsed["spicyLevel"] = 1
+    parsed["spicyLevel"] = clamp_spicy_level(parsed.get("spicyLevel"))
     return parsed
 
 

@@ -370,6 +370,7 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
                     }
                 )
 
+            # 이미지 분석 경로는 추정_식재료만 제공하며 매운맛은 모델 출력이 없음 → 고정 1 대신 null (미추정).
             result = {
                 "menuId": menuId,
                 "menuName": normalized_name,
@@ -378,8 +379,8 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
                 "modelName": "gemini",
                 "modelVersion": cfg.gemini_model,
                 "analyzedAt": analyzed_at,
-                "spicyLevel": 1,
-                "spicy_level": 1,
+                "spicyLevel": None,
+                "spicy_level": None,
                 "ingredients": ingredient_codes,
                 "allergies": [],
             }

@@ -14,25 +14,13 @@ from app.domain.entities import FoodImageQuery, FoodTextQuery, MenuCrawlQuery, S
 from app.repositories.ai_repository import AIRepository
 from app.repositories.crawl_repository import CrawlRepository
 from app.repositories.spring_repository import SpringRepository
+from app.services.ops import clamp_spicy_level
 
 logger = logging.getLogger(__name__)
 BASE_INGREDIENT_CONFIDENCE = 0.95
 INGREDIENT_CONFIDENCE_DECAY = 0.07
 MIN_INGREDIENT_CONFIDENCE = 0.5
 ALLERGEN_FALLBACK_CONFIDENCE = 0.8
-SPICY_LEVEL_MIN = 1
-SPICY_LEVEL_MAX = 5
-
-
-def _clamp_spicy_level(raw: Any) -> int:
-    """모델/호환용 spicyLevel 값을 1~5 정수로 맞춘다."""
-    if raw is None:
-        return SPICY_LEVEL_MIN
-    try:
-        n = int(float(raw))
-    except (TypeError, ValueError):
-        return SPICY_LEVEL_MIN
-    return max(SPICY_LEVEL_MIN, min(SPICY_LEVEL_MAX, n))
 
 
 class LiveService:
@@ -166,7 +154,7 @@ class LiveService:
                     allergy_codes.append(
                         {"allergyCode": code, "confidence": ALLERGEN_FALLBACK_CONFIDENCE}
                     )
-                spicy = _clamp_spicy_level(
+                spicy = clamp_spicy_level(
                     analysis.get("spicyLevel") if analysis.get("spicyLevel") is not None else analysis.get("spicy_level")
                 )
                 return {
