@@ -120,7 +120,7 @@ docker run -d --env-file .env -p 8000:8000 ai-agent-crawler
 | 메서드 | 경로 | 설명 |
 |---|---|---|
 | `POST` | `/api/v1/python/meals/crawl` | 주간 식단 크롤링 |
-| `POST` | `/api/v1/python/menus/analyze` | 메뉴 재료·알레르기 코드·매운맛(1~5) 분석 |
+| `POST` | `/api/v1/python/menus/analyze` | 메뉴 재료·알레르기 코드·매운맛(0~5) 분석 |
 | `POST` | `/api/v1/python/menus/ocr` | 메뉴판 이미지 OCR 추출 |
 | `POST` | `/api/v1/python/menus/analyze-from-ocr` | 메뉴판 OCR 후 연속 분석 |
 | `POST` | `/api/v1/python/menus/analyze-image` | 이미지 기반 메뉴 재료/알레르기 코드 분석 |
@@ -308,7 +308,7 @@ public record PythonMenuAllergyResultDto(
 ```
 
 - `status`: 성공 시 `SUCCESS`, 예외 시 `FAILED`.
-- `spicyLevel`: 매운맛 **1(순함)~5(아주 매움)** 정수. 모델이 내지 않거나 실패·이미지 분석 등으로 값이 없을 때는 **1**로 채워집니다.
+- `spicyLevel`: 매운맛 **0(순함)~5(아주 매움)** 정수. 모델이 내지 않거나 실패·이미지 분석 등으로 값이 없을 때는 **0**으로 채워집니다.
 - `ingredients`: 추정 식재료 코드 목록.
 - `allergies`: 알레르기 유발 추정 코드 목록(`allergyCode`). 분석 실패 시 빈 배열.
 
@@ -537,7 +537,7 @@ public record PythonTranslatedMenuNameDto(
           { "ingredientCode": "SOYBEAN", "confidence": 0.88 }
         ],
         "allergies": [],
-        "spicyLevel": 1
+        "spicyLevel": 0
       }
     ]
   }

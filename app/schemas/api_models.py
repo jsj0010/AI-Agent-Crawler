@@ -116,7 +116,7 @@ class PythonMenuAnalysisResultDto(BaseModel):
     analyzedAt: datetime
     ingredients: list[PythonMenuIngredientResultDto]
     allergies: list[PythonMenuAllergyResultDto] = Field(default_factory=list)
-    spicyLevel: int = Field(default=1, ge=1, le=5, description="매운맛 1(순함)~5(아주 매움), 미추정·실패 시 1")
+    spicyLevel: int = Field(default=0, ge=0, le=5, description="매운맛 0(순함)~5(아주 매움), 미추정·실패 시 0")
 
 
 class PythonMenuAnalysisResponse(BaseModel):
