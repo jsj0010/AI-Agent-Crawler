@@ -171,6 +171,7 @@ class LiveService:
                     "allergies": allergy_codes,
                 }
             except Exception as e:
+                fail_spicy = clamp_spicy_level(None)
                 return {
                     "menuId": target.menuId,
                     "menuName": target.menuName,
@@ -179,8 +180,8 @@ class LiveService:
                     "modelName": "gemini",
                     "modelVersion": self.cfg.gemini_model,
                     "analyzedAt": analyzed_at,
-                    "spicyLevel": None,
-                    "spicy_level": None,
+                    "spicyLevel": fail_spicy,
+                    "spicy_level": fail_spicy,
                     "ingredients": [],
                     "allergies": [],
                 }

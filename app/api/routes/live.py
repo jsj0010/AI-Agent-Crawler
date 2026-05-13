@@ -39,6 +39,7 @@ from app.schemas.openapi_examples import (
     V1_INTERNAL_SERVER_ERROR_EXAMPLE,
 )
 from app.services.live_service import LiveService
+from app.services.ops import clamp_spicy_level
 from app.common.service_ops import (
     CrawlSourceUpstreamError,
     sanitize_url_for_log,
@@ -370,7 +371,8 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
                     }
                 )
 
-            # 이미지 분석 경로는 추정_식재료만 제공하며 매운맛은 모델 출력이 없음 → 고정 1 대신 null (미추정).
+            # 이미지 분석은 추정_식재료만 있어 매운맛 미출력 → 백엔드(Long NOT NULL) 호환을 위해 1~5 스케일에서 기본 1(순함).
+            image_spicy = clamp_spicy_level(None)
             result = {
                 "menuId": menuId,
                 "menuName": normalized_name,
@@ -379,13 +381,14 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
                 "modelName": "gemini",
                 "modelVersion": cfg.gemini_model,
                 "analyzedAt": analyzed_at,
-                "spicyLevel": None,
-                "spicy_level": None,
+                "spicyLevel": image_spicy,
+                "spicy_level": image_spicy,
                 "ingredients": ingredient_codes,
                 "allergies": [],
             }
         except Exception as e:
             logger.exception("analyze_menu_image_v1 failed")
+            fail_spicy = clamp_spicy_level(None)
             result = {
                 "menuId": menuId,
                 "menuName": normalized_name,
@@ -394,8 +397,8 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
                 "modelName": "gemini",
                 "modelVersion": cfg.gemini_model,
                 "analyzedAt": analyzed_at,
-                "spicyLevel": None,
-                "spicy_level": None,
+                "spicyLevel": fail_spicy,
+                "spicy_level": fail_spicy,
                 "ingredients": [],
                 "allergies": [],
             }
