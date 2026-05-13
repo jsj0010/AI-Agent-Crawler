@@ -371,7 +371,7 @@ def create_v1_router(ctx: RuntimeContext) -> APIRouter:
                     }
                 )
 
-            # 이미지 분석은 추정_식재료만 있어 매운맛 미출력 → 백엔드(Long NOT NULL) 호환을 위해 1~5 스케일에서 기본 1(순함).
+            # 이미지 분석은 추정_식재료만 있어 매운맛 미출력 → 0~5 스케일에서 기본 0(순함·미추정).
             image_spicy = clamp_spicy_level(None)
             result = {
                 "menuId": menuId,

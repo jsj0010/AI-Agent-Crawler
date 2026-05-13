@@ -32,12 +32,12 @@ DEFAULT_SOURCE_ALLOWLIST = {"www.kumoh.ac.kr", "kumoh.ac.kr"}
 MEAL_TYPE_ORDER = {"BREAKFAST": 0, "LUNCH": 1, "DINNER": 2}
 logger = logging.getLogger(__name__)
 
-SPICY_LEVEL_MIN = 1
+SPICY_LEVEL_MIN = 0
 SPICY_LEVEL_MAX = 5
 
 
 def clamp_spicy_level(raw: Any) -> int:
-    """모델·JSON의 spicyLevel 값을 1~5 정수로 맞춘다. 공통 유틸."""
+    """모델·JSON의 spicyLevel 값을 0~5 정수로 맞춘다. 공통 유틸."""
     if raw is None:
         return SPICY_LEVEL_MIN
     try:
@@ -229,9 +229,9 @@ def analyze_food_text(client: genai.Client | None, model_name: str, name: str) -
   "foodNameKo": "음식 이름(한국어)",
   "ingredientsKo": ["주요 재료"],
   "allergensKo": [{{"name": "알레르기 유발 가능 식품", "reason": "근거"}}],
-  "spicyLevel": 1
+  "spicyLevel": 2
 }}
-spicyLevel은 매운맛 강도로 정수 1(순함)~5(아주 매움)만 사용한다.
+spicyLevel은 매운맛 강도로 정수 0(순함·거의 안 매움)~5(아주 매움)만 사용한다.
 """
     resp = client.models.generate_content(
         model=model_name,
