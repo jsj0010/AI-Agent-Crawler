@@ -72,7 +72,7 @@ MENU_ANALYZE_SUCCESS_EXAMPLE: dict = {
             {
                 "menuId": 101,
                 "menuName": "김치찌개",
-                "status": "COMPLETED",
+                "status": "SUCCESS",
                 "reason": None,
                 "modelName": "gemini",
                 "modelVersion": "gemini-2.5-flash",
@@ -81,6 +81,10 @@ MENU_ANALYZE_SUCCESS_EXAMPLE: dict = {
                     {"ingredientCode": "SOYBEAN", "confidence": 0.88},
                     {"ingredientCode": "WHEAT", "confidence": 0.81},
                 ],
+                "allergies": [
+                    {"allergyCode": "SOYBEAN", "confidence": 0.85},
+                ],
+                "spicyLevel": 3,
             }
         ]
     },
