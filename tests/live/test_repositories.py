@@ -15,7 +15,7 @@ def test_crawl_repository_load_menu_table_for_source_delegates(monkeypatch):
     repo = CrawlRepository()
 
     def fake_loader(*, cafeteria_name, source_url):
-        assert cafeteria_name == "학생식당"
+        assert cafeteria_name == "일품식당"
         assert source_url == "https://www.kumoh.ac.kr/ko/restaurant01.do"
         return {"ok": True}
 

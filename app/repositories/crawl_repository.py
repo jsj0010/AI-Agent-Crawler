@@ -7,6 +7,7 @@ from typing import Any
 
 from google import genai
 
+from app.domain.crawler.kumoh_menu import normalize_kumoh_cafeteria_name
 from app.domain.entities import MenuCrawlQuery
 from app.common.service_ops import build_daily_meals, load_menu_table_for_source, run_weekly_crawl_once
 
@@ -16,7 +17,7 @@ class CrawlRepository:
 
     def load_menu_table_for_source(self, query: MenuCrawlQuery):
         return load_menu_table_for_source(
-            cafeteria_name=query.cafeteria_name,
+            cafeteria_name=normalize_kumoh_cafeteria_name(query.cafeteria_name),
             source_url=query.source_url,
         )
 

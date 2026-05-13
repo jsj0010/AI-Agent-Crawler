@@ -25,7 +25,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\"schoolName\":\"금오공과대학교\",\"cafeteriaName\":\"학생식당\",\"sourceUrl\":\"https://www.kumoh.ac.kr/ko/restaurant01.do\",\"startDate\":\"2026-05-01\",\"endDate\":\"2026-04-27\"}"
+          "raw": "{\"schoolName\":\"금오공과대학교\",\"cafeteriaName\":\"일품식당\",\"sourceUrl\":\"https://www.kumoh.ac.kr/ko/restaurant01.do\",\"startDate\":\"2026-05-01\",\"endDate\":\"2026-04-27\"}"
         },
         "url": "{{baseUrl}}/api/v1/python/meals/crawl"
       }

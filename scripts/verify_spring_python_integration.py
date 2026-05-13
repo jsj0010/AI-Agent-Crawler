@@ -53,7 +53,7 @@ def verify_spring_calls_python_crawl(*, base_url: str) -> None:
     url = f"{base_url.rstrip('/')}/api/v1/crawl/meals"
     payload = {
         "schoolName": "금오공과대학교",
-        "cafeteriaName": "학생식당",
+        "cafeteriaName": "일품식당",
         "sourceUrl": "https://www.kumoh.ac.kr/ko/restaurant01.do",
         "startDate": "2026-04-21",
         "endDate": "2026-04-22",

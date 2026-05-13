@@ -14,6 +14,7 @@ from app.domain.entities import FoodImageQuery, FoodTextQuery, MenuCrawlQuery, S
 from app.repositories.ai_repository import AIRepository
 from app.repositories.crawl_repository import CrawlRepository
 from app.repositories.spring_repository import SpringRepository
+from app.services.ops import clamp_spicy_level
 
 logger = logging.getLogger(__name__)
 BASE_INGREDIENT_CONFIDENCE = 0.95
@@ -123,12 +124,12 @@ class LiveService:
                 async with semaphore:
                     analysis = await asyncio.to_thread(self.analyze_food_text, target.menuName)
                 ingredient_codes: list[dict[str, Any]] = []
-                dedup: set[str] = set()
+                ing_dedup: set[str] = set()
                 for idx, ingredient in enumerate(analysis.get("ingredientsKo") or []):
                     code = self.map_ingredient_code(str(ingredient).strip())
-                    if not code or code in dedup:
+                    if not code or code in ing_dedup:
                         continue
-                    dedup.add(code)
+                    ing_dedup.add(code)
                     ingredient_codes.append(
                         {
                             "ingredientCode": code,
@@ -141,27 +142,36 @@ class LiveService:
                             ),
                         }
                     )
+                allergy_codes: list[dict[str, Any]] = []
+                allergy_dedup: set[str] = set()
                 for allergen in analysis.get("allergensKo") or []:
                     if not isinstance(allergen, dict):
                         continue
                     code = self.map_ingredient_code(str(allergen.get("name", "")).strip())
-                    if not code or code in dedup:
+                    if not code or code in allergy_dedup:
                         continue
-                    dedup.add(code)
-                    ingredient_codes.append(
-                        {"ingredientCode": code, "confidence": ALLERGEN_FALLBACK_CONFIDENCE}
+                    allergy_dedup.add(code)
+                    allergy_codes.append(
+                        {"allergyCode": code, "confidence": ALLERGEN_FALLBACK_CONFIDENCE}
                     )
+                spicy = clamp_spicy_level(
+                    analysis.get("spicyLevel") if analysis.get("spicyLevel") is not None else analysis.get("spicy_level")
+                )
                 return {
                     "menuId": target.menuId,
                     "menuName": target.menuName,
-                    "status": "COMPLETED",
+                    "status": "SUCCESS",
                     "reason": None,
                     "modelName": "gemini",
                     "modelVersion": self.cfg.gemini_model,
                     "analyzedAt": analyzed_at,
+                    "spicyLevel": spicy,
+                    "spicy_level": spicy,
                     "ingredients": ingredient_codes,
+                    "allergies": allergy_codes,
                 }
             except Exception as e:
+                fail_spicy = clamp_spicy_level(None)
                 return {
                     "menuId": target.menuId,
                     "menuName": target.menuName,
@@ -170,7 +180,10 @@ class LiveService:
                     "modelName": "gemini",
                     "modelVersion": self.cfg.gemini_model,
                     "analyzedAt": analyzed_at,
+                    "spicyLevel": fail_spicy,
+                    "spicy_level": fail_spicy,
                     "ingredients": [],
+                    "allergies": [],
                 }
 
         return await asyncio.gather(*[_analyze_single_menu(target) for target in menus])

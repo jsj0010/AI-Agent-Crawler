@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date
+from types import SimpleNamespace
 
 from app.config.runtime import RuntimeContext, ServiceConfig
 from app.services.live_service import LiveService
@@ -54,7 +56,7 @@ def test_build_daily_meals_delegates_to_crawl_repository():
             return {"unused": True}
 
         def build_daily_meals(self, *, cafeteria_name, table, start, end):
-            assert cafeteria_name == "학생식당"
+            assert cafeteria_name == "일품식당"
             assert table == {"k": "v"}
             assert start == date(2026, 3, 23)
             assert end == date(2026, 3, 27)
@@ -62,7 +64,7 @@ def test_build_daily_meals_delegates_to_crawl_repository():
 
     svc.crawl_repo = StubCrawlRepo()
     out = svc.build_daily_meals(
-        cafeteria_name="학생식당",
+        cafeteria_name="일품식당",
         table={"k": "v"},
         start=date(2026, 3, 23),
         end=date(2026, 3, 27),
@@ -125,3 +127,36 @@ def test_service_supports_dependency_injection_for_repositories():
 
     assert svc.run_weekly_crawl_once()["status"] == "ok"
     assert svc.analyze_food_text("계란찜")["foodNameKo"] == "계란찜"
+
+
+def test_analyze_menus_splits_ingredients_allergies_and_spicy():
+    ctx = _build_ctx()
+
+    class StubAIRepo:
+        def analyze_food_text(self, client, model_name, food_name):
+            return {
+                "ingredientsKo": ["달걀"],
+                "allergensKo": [{"name": "우유", "reason": "함유 가능"}],
+                "spicyLevel": 4,
+            }
+
+        def map_ingredient_code(self, token: str):
+            t = token.strip()
+            if t == "달걀":
+                return "EGG"
+            if t == "우유":
+                return "MILK"
+            return None
+
+    svc = LiveService(ctx, ai_repo=StubAIRepo())
+    targets = [SimpleNamespace(menuId=99, menuName="테스트")]
+    results = asyncio.run(svc.analyze_menus(targets, max_concurrency=2))
+    assert len(results) == 1
+    row = results[0]
+    assert row["status"] == "SUCCESS"
+    assert row["spicyLevel"] == 4
+    assert row["spicy_level"] == 4
+    ing_codes = {x["ingredientCode"] for x in row["ingredients"]}
+    assert ing_codes == {"EGG"}
+    allergy_codes = {x["allergyCode"] for x in row["allergies"]}
+    assert allergy_codes == {"MILK"}

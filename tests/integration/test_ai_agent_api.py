@@ -44,8 +44,8 @@ def test_python_menus_analyze_returns_success_data(client: TestClient) -> None:
     assert len(data["results"]) >= 1
     first = data["results"][0]
     assert first.get("menuId") == 101
-    assert first.get("status") in ("COMPLETED", "FAILED")
-    if first.get("status") == "COMPLETED":
+    assert first.get("status") in ("SUCCESS", "COMPLETED", "FAILED")
+    if first.get("status") in ("SUCCESS", "COMPLETED"):
         assert isinstance(first.get("ingredients"), list)
 
 

@@ -8,20 +8,31 @@ from typing import Generic, Optional, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.domain.crawler.kumoh_menu import normalize_kumoh_cafeteria_name
+
 T = TypeVar("T")
 
 
 class PythonMealCrawlRequest(BaseModel):
     schoolName: str = Field(..., min_length=1)
-    cafeteriaName: str = Field(..., min_length=1)
+    cafeteriaName: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "금오공대 식단 페이지 기준 식당명: 일품식당(restaurant01.do), "
+            "정찬식당(restaurant02.do), 분식당(restaurant04.do). "
+            "구명칭 학생식당→일품식당, 교직원식당→정찬식당 도 자동 치환됩니다."
+        ),
+    )
     sourceUrl: str = Field(..., min_length=1)
     startDate: date
     endDate: date
 
     @model_validator(mode="after")
-    def validate_date_range(self):
+    def validate_date_range_and_cafeteria(self):
         if self.startDate > self.endDate:
             raise ValueError("startDate는 endDate보다 이후일 수 없습니다.")
+        self.cafeteriaName = normalize_kumoh_cafeteria_name(self.cafeteriaName)
         return self
 
 
@@ -90,6 +101,11 @@ class PythonMenuIngredientResultDto(BaseModel):
     confidence: float
 
 
+class PythonMenuAllergyResultDto(BaseModel):
+    allergyCode: str
+    confidence: float
+
+
 class PythonMenuAnalysisResultDto(BaseModel):
     menuId: int
     menuName: str
@@ -99,6 +115,8 @@ class PythonMenuAnalysisResultDto(BaseModel):
     modelVersion: str
     analyzedAt: datetime
     ingredients: list[PythonMenuIngredientResultDto]
+    allergies: list[PythonMenuAllergyResultDto] = Field(default_factory=list)
+    spicyLevel: int = Field(default=1, ge=1, le=5, description="매운맛 1(순함)~5(아주 매움), 미추정·실패 시 1")
 
 
 class PythonMenuAnalysisResponse(BaseModel):

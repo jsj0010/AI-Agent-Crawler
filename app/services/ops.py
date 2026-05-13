@@ -22,7 +22,7 @@ from pandas.errors import ParserError
 
 from app.config.runtime import ALLOWED_ACCEPT_LANGUAGES, CANONICAL_TO_INGREDIENT_CODE, ServiceConfig
 from app.domain.allergy.agent import analyze_menus_with_gemini, iter_menu_entries, results_to_dataframe
-from app.domain.crawler.kumoh_menu import MENU_ITEM_DELIM, load_menus, parse_table_from_html
+from app.domain.crawler.kumoh_menu import MENU_ITEM_DELIM, load_menus, normalize_kumoh_cafeteria_name, parse_table_from_html
 from app.domain.crawler.push_menus import post_menu_ingest
 from user_features.allergen_catalog import ALIAS_TO_CANONICAL
 from user_features.i18n_summary import summarize_for_locale
@@ -31,6 +31,20 @@ from user_features.payloads import build_extended_menu_payload
 DEFAULT_SOURCE_ALLOWLIST = {"www.kumoh.ac.kr", "kumoh.ac.kr"}
 MEAL_TYPE_ORDER = {"BREAKFAST": 0, "LUNCH": 1, "DINNER": 2}
 logger = logging.getLogger(__name__)
+
+SPICY_LEVEL_MIN = 1
+SPICY_LEVEL_MAX = 5
+
+
+def clamp_spicy_level(raw: Any) -> int:
+    """모델·JSON의 spicyLevel 값을 1~5 정수로 맞춘다. 공통 유틸."""
+    if raw is None:
+        return SPICY_LEVEL_MIN
+    try:
+        n = int(float(raw))
+    except (TypeError, ValueError):
+        return SPICY_LEVEL_MIN
+    return max(SPICY_LEVEL_MIN, min(SPICY_LEVEL_MAX, n))
 ALLERGY_KEYWORD_TO_API_CODE = {
     "mackerel": "MACKEREL",
     "고등어": "MACKEREL",
@@ -214,8 +228,10 @@ def analyze_food_text(client: genai.Client | None, model_name: str, name: str) -
 {{
   "foodNameKo": "음식 이름(한국어)",
   "ingredientsKo": ["주요 재료"],
-  "allergensKo": [{{"name": "알레르기 유발 가능 식품", "reason": "근거"}}]
+  "allergensKo": [{{"name": "알레르기 유발 가능 식품", "reason": "근거"}}],
+  "spicyLevel": 1
 }}
+spicyLevel은 매운맛 강도로 정수 1(순함)~5(아주 매움)만 사용한다.
 """
     resp = client.models.generate_content(
         model=model_name,
@@ -232,6 +248,7 @@ def analyze_food_text(client: genai.Client | None, model_name: str, name: str) -
     parsed = json.loads(raw)
     if not isinstance(parsed, dict):
         raise RuntimeError("모델 응답 JSON이 객체 형태가 아닙니다.")
+    parsed["spicyLevel"] = clamp_spicy_level(parsed.get("spicyLevel"))
     return parsed
 
 
@@ -395,6 +412,23 @@ def _is_menu_noise(line: str) -> bool:
 
 _KNOWN_CORNERS = frozenset({"조식", "중식", "석식", "일품요리"})
 
+# 분식당 HTML에 '라면류'·'돈가스류'로만 올라오는 경우 개별 메뉴명으로 펼칩니다.
+_BUNSIK_RAMEN_MENUS = ("떡만두라면", "얼큰라면", "치즈라면", "라면", "공깃밥")
+_BUNSIK_PORK_CUTLET_MENUS = ("왕돈가스", "고구마돈가스", "치즈돈가스")
+
+
+def _expand_bunsik_category_tokens(menu_items: list[str]) -> list[str]:
+    expanded: list[str] = []
+    for item in menu_items:
+        s = item.strip()
+        if s == "라면류":
+            expanded.extend(_BUNSIK_RAMEN_MENUS)
+        elif s == "돈가스류":
+            expanded.extend(_BUNSIK_PORK_CUTLET_MENUS)
+        else:
+            expanded.append(item)
+    return expanded
+
 
 def parse_menu_cell(cell_text: str, fallback_corner: str) -> tuple[str, str, list[str]]:
     """셀 텍스트를 파싱하여 (cornerName, mealType, [menuName, ...])을 반환합니다.
@@ -403,6 +437,7 @@ def parse_menu_cell(cell_text: str, fallback_corner: str) -> tuple[str, str, lis
     필터링 후 유효 항목이 하나만 남고 그것이 알려진 코너명이 아닌 경우
     메뉴명으로 취급합니다.
     """
+    fallback_corner = normalize_kumoh_cafeteria_name(fallback_corner)
     has_delimiters = MENU_ITEM_DELIM in cell_text
     items = [s.strip() for s in cell_text.split(MENU_ITEM_DELIM) if s.strip()]
 
@@ -460,6 +495,7 @@ def extract_date_from_column(column_name: str, start: date, end: date) -> date |
 
 
 def build_daily_meals(*, cafeteria_name: str, table: Any, start: date, end: date) -> list[dict[str, Any]]:
+    cafeteria_name = normalize_kumoh_cafeteria_name(cafeteria_name)
     meals: list[dict[str, Any]] = []
     for column in table.columns:
         meal_date = extract_date_from_column(str(column), start, end)
@@ -479,6 +515,10 @@ def build_daily_meals(*, cafeteria_name: str, table: Any, start: date, end: date
             corner_name, meal_type, menu_items = parse_menu_cell(cell_text, cafeteria_name)
             if not menu_items:
                 continue
+            if cafeteria_name == "분식당":
+                menu_items = _expand_bunsik_category_tokens(menu_items)
+                if not menu_items:
+                    continue
 
             if meal_type not in meals_by_type:
                 meals_by_type[meal_type] = []
@@ -508,6 +548,7 @@ def build_daily_meals(*, cafeteria_name: str, table: Any, start: date, end: date
 
 
 def load_menu_table_for_source(*, cafeteria_name: str, source_url: str) -> pd.DataFrame:
+    cafeteria_name = normalize_kumoh_cafeteria_name(cafeteria_name)
     _validate_source_url(source_url)
     source_fetch_error: BaseException | None = None
 
